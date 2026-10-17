@@ -3,6 +3,16 @@
 Prepare, review and upload torrents to DirtyBytes from a browser or the command line.
 Run it on the Linux server or seedbox that holds your media.
 
+## Screenshots
+
+The empty upload workspace:
+
+![Empty upload workspace](docs/images/workspace-empty.png)
+
+Built-in installation and seeding guide:
+
+![Built-in manuals and folder mapping](docs/images/manuals.png)
+
 ## Install with Docker
 
 Install [Docker Engine with Compose v2](https://docs.docker.com/engine/install/)
