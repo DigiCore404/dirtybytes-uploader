@@ -4,9 +4,21 @@
 
 An empty upload workspace and the built-in installation and seeding guide.
 
-![Empty upload workspace](docs/images/workspace-empty.png)
+![Empty upload workspace](docs/images/workspace-empty.jpg)
 
-![Built-in manuals and folder mapping](docs/images/manuals.png)
+![Built-in manuals and folder mapping](docs/images/manuals.jpg)
+
+### Settings & automation
+
+![Uploader settings and image host](docs/images/settings.jpg)
+
+### Screenshots & thumbnail sheets
+
+![Screenshot and MTN configuration](docs/images/screenshot-settings.jpg)
+
+### Metadata search
+
+![Empty metadata search](docs/images/metadata-search.jpg)
 
 The complete Linux amd64 image contains Python, Chromium for catalogue lookups,
 FFmpeg, MediaInfo, mkbrr, MTN, UnRAR and rar2fs.

@@ -7,11 +7,23 @@ Run it on the Linux server or seedbox that holds your media.
 
 The empty upload workspace:
 
-![Empty upload workspace](docs/images/workspace-empty.png)
+![Empty upload workspace](docs/images/workspace-empty.jpg)
 
 Built-in installation and seeding guide:
 
-![Built-in manuals and folder mapping](docs/images/manuals.png)
+![Built-in manuals and folder mapping](docs/images/manuals.jpg)
+
+### Settings & automation
+
+![Uploader settings and image host](docs/images/settings.jpg)
+
+### Screenshots & thumbnail sheets
+
+![Screenshot and MTN configuration](docs/images/screenshot-settings.jpg)
+
+### Metadata search
+
+![Empty metadata search](docs/images/metadata-search.jpg)
 
 ## Install with Docker
 
@@ -82,7 +94,6 @@ tracker before retrying an interrupted upload.
 Bundled tools: mkbrr 1.27.0 and MTN 3.5.0. Docker also builds rar2fs 1.29.7 and
 UnRAR 7.3.1; FFmpeg and MediaInfo come from the image's system packages.
 For updates, persistent storage and optional RAR mounts, see [Docker details](README-docker.md).
-
 
 For a single file, select it in the content browser. The uploader creates a release
 folder beside it and adds a link. Choose **Hardlink** or **Softlink** in
