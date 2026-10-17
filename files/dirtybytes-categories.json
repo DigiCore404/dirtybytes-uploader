@@ -1,0 +1,184 @@
+[
+  {
+    "id": 1,
+    "name": "Movies/SD",
+    "type": 2,
+    "resolution": 480,
+    "vr180": false
+  },
+  {
+    "id": 2,
+    "name": "Movies/720p",
+    "type": 2,
+    "resolution": 720,
+    "vr180": false
+  },
+  {
+    "id": 3,
+    "name": "Movies/1080p",
+    "type": 2,
+    "resolution": 1080,
+    "vr180": false
+  },
+  {
+    "id": 4,
+    "name": "Movies/1440p",
+    "type": 2,
+    "resolution": 1440,
+    "vr180": false
+  },
+  {
+    "id": 5,
+    "name": "Movies/2160p",
+    "type": 2,
+    "resolution": 2160,
+    "vr180": false
+  },
+  {
+    "id": 6,
+    "name": "Movies/4320p",
+    "type": 2,
+    "resolution": 4320,
+    "vr180": false
+  },
+  {
+    "id": 7,
+    "name": "Scene/SD",
+    "type": 1,
+    "resolution": 480,
+    "vr180": false
+  },
+  {
+    "id": 8,
+    "name": "Scene/720p",
+    "type": 1,
+    "resolution": 720,
+    "vr180": false
+  },
+  {
+    "id": 9,
+    "name": "Scene/1080p",
+    "type": 1,
+    "resolution": 1080,
+    "vr180": false
+  },
+  {
+    "id": 10,
+    "name": "Scene/1440p",
+    "type": 1,
+    "resolution": 1440,
+    "vr180": false
+  },
+  {
+    "id": 11,
+    "name": "Scene/2160p",
+    "type": 1,
+    "resolution": 2160,
+    "vr180": false
+  },
+  {
+    "id": 12,
+    "name": "Scene/4320p",
+    "type": 1,
+    "resolution": 4320,
+    "vr180": false
+  },
+  {
+    "id": 13,
+    "name": "Movies/VR180/1080p",
+    "type": 2,
+    "resolution": 1080,
+    "vr180": true
+  },
+  {
+    "id": 14,
+    "name": "Movies/VR180/1440p",
+    "type": 2,
+    "resolution": 1440,
+    "vr180": true
+  },
+  {
+    "id": 15,
+    "name": "Movies/VR180/2160p",
+    "type": 2,
+    "resolution": 2160,
+    "vr180": true
+  },
+  {
+    "id": 16,
+    "name": "Movies/VR180/2880p",
+    "type": 2,
+    "resolution": 2880,
+    "vr180": true
+  },
+  {
+    "id": 17,
+    "name": "Movies/VR180/3600p",
+    "type": 2,
+    "resolution": 3600,
+    "vr180": true
+  },
+  {
+    "id": 18,
+    "name": "Movies/VR180/4320p",
+    "type": 2,
+    "resolution": 4320,
+    "vr180": true
+  },
+  {
+    "id": 19,
+    "name": "Scene/VR180/1080p",
+    "type": 1,
+    "resolution": 1080,
+    "vr180": true
+  },
+  {
+    "id": 20,
+    "name": "Scene/VR180/1440p",
+    "type": 1,
+    "resolution": 1440,
+    "vr180": true
+  },
+  {
+    "id": 21,
+    "name": "Scene/VR180/2160p",
+    "type": 1,
+    "resolution": 2160,
+    "vr180": true
+  },
+  {
+    "id": 22,
+    "name": "Scene/VR180/2880p",
+    "type": 1,
+    "resolution": 2880,
+    "vr180": true
+  },
+  {
+    "id": 23,
+    "name": "Scene/VR180/3600p",
+    "type": 1,
+    "resolution": 3600,
+    "vr180": true
+  },
+  {
+    "id": 24,
+    "name": "Scene/VR180/4320p",
+    "type": 1,
+    "resolution": 4320,
+    "vr180": true
+  },
+  {
+    "id": 25,
+    "name": "Photo Sets",
+    "type": 3,
+    "resolution": 0,
+    "vr180": false
+  },
+  {
+    "id": 26,
+    "name": "Packs",
+    "type": 4,
+    "resolution": 0,
+    "vr180": false
+  }
+]

@@ -1,0 +1,9 @@
+[b]!releasename![/b]
+
+!description!
+
+!imageupload!
+
+!screenshots!
+
+!nfo!

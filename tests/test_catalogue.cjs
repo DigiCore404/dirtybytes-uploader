@@ -1,0 +1,12 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const context={window:{},URL};vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../webui/catalogue.js'),'utf8'),context);
+const helper=context.window.CatalogMetadata;
+assert.equal(helper.similarity('Sample Title 8','Sample Title 8'),1);
+assert.ok(helper.similarity('Sample Title 8','Sample Title 9')<.9);
+assert.ok(helper.similarity('Sample Title 8','Sample Title')<.9);
+assert.equal(helper.similarity('Hot Hot Title','Hot Title'),helper.similarity('Hot Title','Hot Hot Title'));
+const structured={"@type":"Movie",actor:[{name:'Test Performer'}],genre:['Drama'],productionCompany:{name:'Test Studio'},datePublished:'2024-01-01',duration:'PT2H15M',image:'https://example.com/cover.jpg'};
+const doc={images:[],querySelector:()=>null,querySelectorAll:selector=>selector==='script[type="application/ld+json"]'?[{textContent:JSON.stringify(structured)}]:[]};
+const value=helper.extract(doc,'https://www.jeedoo.com/title/sample',helper.sites[0]);
+assert.equal(value.studio,'Test Studio');assert.equal(value.performers,'Test Performer');assert.equal(value.runtime_minutes,'135');assert.equal(value.release_year,'2024');assert.equal(value.covers[0],'https://example.com/cover.jpg');
+console.log('Catalogue parsing, title symmetry and volume guards OK.');
