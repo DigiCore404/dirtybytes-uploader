@@ -354,6 +354,7 @@ def run_backend_cli(arguments):
 def main():
     parser = argparse.ArgumentParser(description='DirtyBytes Uploader - browser, CLI and folder watch')
     sub = parser.add_subparsers(dest='command')
+    sub.add_parser('reset-password', help='Choose a new workspace password locally, without changing uploads or settings')
     sub.add_parser('gui', help='Open the HTML upload interface')
     web_parser = sub.add_parser('web', help='Run the browser upload interface')
     web_parser.add_argument('--host', default='127.0.0.1')
@@ -379,6 +380,10 @@ def main():
     watcher.add_argument('--folder', help='Dedicated incoming folder inside DATADIR; overrides Watch.INCOMING_DIR')
     args = parser.parse_args()
     os.chdir(ROOT)
+    if args.command == 'reset-password':
+        from utils.web_security import reset_password_interactive
+        reset_password_interactive(ROOT / 'data/uploads.db')
+        return 0
     ensure_config()
     if args.command in (None, 'gui', 'web'):
         from web import serve

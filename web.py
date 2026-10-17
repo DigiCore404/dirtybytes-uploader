@@ -557,6 +557,8 @@ def create_server(host='127.0.0.1', port=6080, password=None, history_path=None)
     server.workspace = Workspace(password, history_path)
     if generated_password and server.workspace.security.created:
         print(f'Initial workspace login: {server.workspace.security.state()["username"]} / {password}', flush=True)
+    elif not server.workspace.security.created:
+        print('Using the saved workspace login. Forgotten password? Stop the web service, run bash start.sh reset-password, then restart.', flush=True)
     return server
 
 

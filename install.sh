@@ -64,6 +64,8 @@ fi
 echo 'Next: edit config.ini (DirtyBytes API_KEY, ANNOUNCEURL and your media/watch paths).'
 echo 'Check: bash start.sh check'
 echo 'Browser service: bash start.sh web --host 127.0.0.1 --port 6080 --no-browser'
+echo 'Workspace login: first web startup prints the generated password. With --service it appears in journalctl --user -u dirtybytes-uploader.service.'
+echo 'Choose or recover your workspace password: bash start.sh reset-password (stop the web service first, then restart it).'
 echo 'PC access: ssh -L 6080:127.0.0.1:6080 your-user@seedbox.example.com'
 echo 'Then open http://127.0.0.1:6080 on your PC. No uploads start during installation.'
 if [[ $SERVICE -eq 1 ]]; then .venv/bin/python scripts/service.py install --host 127.0.0.1 --port 6080; fi

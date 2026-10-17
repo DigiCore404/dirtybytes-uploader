@@ -4,6 +4,35 @@ import hmac
 import ipaddress
 import json
 import secrets
+import sqlite3
+from pathlib import Path
+from contextlib import closing
+
+
+def reset_password(database_path, password):
+    """Local recovery changes only the workspace password, preserving other state."""
+    if not 12 <= len(password) <= 256:
+        raise ValueError('Use a password between 12 and 256 characters.')
+    path = Path(database_path)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path.touch(mode=0o600, exist_ok=True)
+    with closing(sqlite3.connect(path)) as db, db:
+        db.execute('CREATE TABLE IF NOT EXISTS workspace_security (id INTEGER PRIMARY KEY CHECK(id=1), username TEXT NOT NULL, password_hash TEXT NOT NULL, allowed_ips TEXT NOT NULL)')
+        row = db.execute('SELECT username FROM workspace_security WHERE id=1').fetchone()
+        if row:
+            db.execute('UPDATE workspace_security SET password_hash=? WHERE id=1', (password_hash(password),))
+            return row[0]
+        db.execute('INSERT INTO workspace_security VALUES (1,?,?,?)', ('admin', password_hash(password), '[]'))
+        return 'admin'
+
+
+def reset_password_interactive(database_path):
+    import getpass
+    password = getpass.getpass('New workspace password (12–256 characters): ')
+    if password != getpass.getpass('Repeat password: '):
+        raise ValueError('Passwords do not match. Nothing changed.')
+    username = reset_password(database_path, password)
+    print(f'Workspace password saved. Username: {username}. Restart the web service before signing in.')
 
 
 def password_hash(password):

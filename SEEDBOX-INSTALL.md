@@ -52,6 +52,14 @@ PASSWORD blank: the first start prints a generated login. Save that login. Later
 password/IP changes are stored in SQLite through Settings; changing the bootstrap
 password in config.ini does not reset an established login. Keep config.ini private.
 
+Forgot the workspace password? Stop the web service, then run this from the installation folder:
+
+```bash
+bash start.sh reset-password
+```
+
+Enter your new password twice, then restart the web service. The command shows your username and preserves settings, uploads and history. It also works before the first web startup.
+
 ```bash
 bash start.sh check
 ```
