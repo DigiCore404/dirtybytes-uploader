@@ -1,7 +1,6 @@
-# DirtyBytes Uploader — Linux seedbox package
+# DirtyBytes Uploader for Linux seedboxes
 
-Runs directly under your own Linux account. No Docker, VNC, desktop or Node.js is
-required. The browser interface and CLI use the same upload backend and config.ini.
+Runs directly under your own Linux account. Use the browser interface or CLI directly. The browser interface and CLI use the same upload backend and config.ini.
 Based on the existing DirtyBytes/DC Uploader backend; attribution remains in the source.
 
 ## 1. Extract and install
@@ -9,7 +8,7 @@ Based on the existing DirtyBytes/DC Uploader backend; attribution remains in the
 Upload the package to a folder you own on the seedbox, then connect over SSH:
 
 ```bash
-tar -xzf dirtybytes-uploader-seedbox-2.3.1.tar.gz
+tar -xzf dirtybytes-uploader-seedbox-2.3.2.tar.gz
 cd dirtybytes-uploader-seedbox
 bash install.sh
 ```

@@ -12,7 +12,7 @@ except ModuleNotFoundError:
 
 ROOT=Path(__file__).resolve().parents[1]
 NAME='dirtybytes-uploader-seedbox'
-VERSION='2.3.1'
+VERSION='2.3.2'
 
 
 def entries():
@@ -34,7 +34,7 @@ def entries():
 
 
 def mode(name):
-    return 0o600 if name=='config.ini' else 0o755 if name.endswith('.sh') or name.endswith('/mkbrr') or name=='bin/mtn/mtn' else 0o644
+    return 0o600 if name=='config.ini' else 0o755 if name.endswith('.sh') or name.endswith('/mkbrr') or name in ('bin/mtn/mtn','bin/mtn/mtn.bin') else 0o644
 
 
 def build():

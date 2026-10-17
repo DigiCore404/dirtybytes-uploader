@@ -1,3 +1,8 @@
+FROM ubuntu:22.04 AS mtn-tools
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends make gcc pkg-config curl ca-certificates libgd-dev libavutil-dev libavcodec-dev libavformat-dev libavfilter-dev libswscale-dev && rm -rf /var/lib/apt/lists/*
+COPY scripts/build-mtn.sh /build-mtn.sh
+RUN bash /build-mtn.sh /opt/mtn
+
 FROM python:3.12-slim-bookworm AS archive-tools
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential autoconf automake libtool pkg-config libfuse-dev curl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY scripts/build-archive-tools.sh /build-archive-tools.sh
@@ -18,8 +23,11 @@ COPY defaults.ini config.example.ini uploader.py backend.py web.py ./
 COPY utils/ ./utils/
 COPY webui/ ./webui/
 COPY files/template.txt files/filters.json files/dirtybytes-categories.json ./files/
-COPY bin/ ./bin/
-RUN find /app/bin -type f \( -name mkbrr -o -name mtn \) -exec chmod 755 {} + \
+COPY bin/mkbrr/ ./bin/mkbrr/
+COPY bin/versions.json ./bin/versions.json
+COPY bin/mtn/DejaVuSans.ttf bin/mtn/FONT-LICENSE.txt bin/mtn/COPYRIGHT.txt ./bin/mtn/
+COPY --from=mtn-tools /opt/mtn/ /app/bin/mtn/
+RUN find /app/bin -type f \( -name mkbrr -o -name mtn -o -name mtn.bin \) -exec chmod 755 {} + \
     && mkdir -p /config /content /watch /mounts /app/data /app/tmp /app/logs
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 DIRTYBYTES_CONTAINER=1 DIRTYBYTES_CONFIG=/config/config.ini
 EXPOSE 6080

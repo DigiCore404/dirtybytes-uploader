@@ -16,10 +16,9 @@ def find_tool(name,config):
             candidate=candidate if candidate.is_absolute() else ROOT/candidate
             return str(candidate) if candidate.is_file() and os.access(candidate,os.X_OK) else None
         return shutil.which(configured)
-    system=shutil.which(name)
-    if system:return system
-    if platform.system()!='Linux':return None
+    if platform.system()!='Linux':return shutil.which(name)
     machine=platform.machine().lower()
     arch={'amd64':'x86_64','x86_64':'x86_64','aarch64':'arm64','arm64':'arm64','armv7l':'arm','armv6l':'armv6'}.get(machine)
     candidate=ROOT/'bin'/'mkbrr'/'linux'/str(arch)/'mkbrr' if name=='mkbrr' else ROOT/'bin'/'mtn'/'mtn' if arch=='x86_64' else None
-    return str(candidate) if candidate and candidate.is_file() and os.access(candidate,os.X_OK) else None
+    # Prefer our tested versions over an older tool installed by the provider.
+    return str(candidate) if candidate and candidate.is_file() and os.access(candidate,os.X_OK) else shutil.which(name)

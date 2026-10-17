@@ -51,7 +51,7 @@ chmod 600 config.ini
 mkdir -p content/incoming watch tmp data logs
 chmod +x start.sh scripts/upload.sh
 if [[ -f start-web.sh ]]; then chmod +x start-web.sh; fi
-if [[ -d bin ]]; then find bin -type f \( -name mkbrr -o -name mtn \) -exec chmod u+x {} +; fi
+if [[ -d bin ]]; then find bin -type f \( -name mkbrr -o -name mtn -o -name mtn.bin \) -exec chmod u+x {} +; fi
 echo 'Python environment installed. Existing config.ini and application data were preserved.'
 MISSING=0
 for tool in ffmpeg ffprobe mediainfo; do

@@ -1,7 +1,7 @@
 # Install with Docker
 
 The complete Linux amd64 image contains Python, Chromium for catalogue lookups,
-FFmpeg, MediaInfo, mkbrr, MTN, UnRAR and rar2fs. No desktop or VNC is needed.
+FFmpeg, MediaInfo, mkbrr, MTN, UnRAR and rar2fs.
 
 Download and extract the Docker installer from this repository's Releases page.
 Run on your server, choosing your existing media library:
@@ -93,6 +93,7 @@ path mapping above; the ordinary import-root mapping is not sufficient.
 ## Update, logs and CLI
 
 ```bash
+bash setup.sh --image ghcr.io/digicore404/dirtybytes-uploader:2.3.2 --no-start
 docker compose pull
 docker compose up -d --wait
 docker compose logs --tail 100 uploader
@@ -105,15 +106,6 @@ preserve mounted configuration and history. `latest` tracks stable releases;
 `edge` tracks main. Build locally with
 `docker build --target release -t dirtybytes-uploader:local .`, then select that
 image with `setup.sh --image dirtybytes-uploader:local --media /srv/media`.
-
-## GitHub / GHCR publishing
-
-The included workflow tests and scans the allowlisted source before publishing.
-Push a `v2.3.1` tag to publish the version and `latest`; main publishes `edge`.
-GitHub's automatic `GITHUB_TOKEN` is used; no personal registry token is stored.
-The first GHCR package may need **Package settings → Change visibility → Public**.
-Verify a pull without signing in before advertising the image as publicly usable.
-The workflow also attaches a small Docker installer to the GitHub release.
 
 Third-party tool licences are retained in `bin`. The image includes the rar2fs
 and UnRAR licences, corresponding source archives and build script under

@@ -1,11 +1,15 @@
 """Allowlisted publication files and checks that never print secret values."""
 import configparser
+import hashlib
 import re
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET_KEY = re.compile(r'(?:password|passwd|passkey|api[_-]?key|token|authcode|cookie|announceurl)$', re.I)
-TOKEN = re.compile(rb'(?:gh[pousr]_[A-Za-z0-9_]{30,}|github_pat_[A-Za-z0-9_]{30,}|-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----)')
+TOKEN = re.compile(rb'(?:gh[pousr]_[A-Za-z0-9_]{30,}|github_pat_[A-Za-z0-9_]{30,}|-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----\r?\n[A-Za-z0-9+/=\r\n]{64,})')
+# Ubuntu's unmodified GnuTLS library embeds public crypto self-test fixtures.
+# Trust only this exact package binary; a changed file must be reviewed again.
+VENDOR_CRYPTO_FIXTURES = {'bin/mtn/lib/libgnutls.so.30': 'dcadda7f0f82c54ca157b6ca0a5fdc8e1128db4d778109c8e197e2f84c2ac9ba'}
 PERSONAL = re.compile(rb'(?:/volume[0-9]+/|[Cc]:[\\/]Users[\\/](?!Public\b|Example\b)[^\s/\\]+|89\.149\.221\.100|192\.168\.1\.109|\bdisksta[t]ion\b)', re.I)
 
 
@@ -19,7 +23,8 @@ def check(files):
             errors.append((name, 'private/runtime directory'))
         if (path.name.startswith('.env') and path.name != '.env.example') or path.name == 'web.env' or path.suffix.lower() in ('.db', '.sqlite', '.sqlite3', '.log', '.torrent', '.pem', '.key', '.pyc', '.bak', '.backup'):
             errors.append((name, 'private/runtime file'))
-        if TOKEN.search(raw): errors.append((name, 'credential pattern'))
+        if TOKEN.search(raw) and VENDOR_CRYPTO_FIXTURES.get(name) != hashlib.sha256(raw).hexdigest():
+            errors.append((name, 'credential pattern'))
         if PERSONAL.search(raw): errors.append((name, 'personal host or path'))
         if path.suffix == '.ini':
             config = configparser.ConfigParser(interpolation=None)

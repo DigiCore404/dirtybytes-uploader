@@ -28,3 +28,6 @@ workspace
 *.db
 *.tar.gz
 *.zip
+bin/mtn/lib/
+bin/mtn/mtn.bin
+bin/mtn/source/
