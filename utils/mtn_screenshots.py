@@ -24,8 +24,18 @@ def generate(source,target,duration,config):
         command=common+options+['-o',suffix,'-O',str(target),str(source)]
         result=subprocess.run(command,capture_output=True,text=True,timeout=120)
         output=target/(source.stem+suffix)
-        if result.returncode or not output.is_file() or not output.stat().st_size:
+        jpeg = False
+        if output.is_file() and output.stat().st_size >= 4:
+            with output.open('rb') as image:
+                starts = image.read(2)
+                image.seek(-2, 2)
+                jpeg = starts == b'\xff\xd8' and image.read(2) == b'\xff\xd9'
+        # MTN 3.5 returns 1 when a short video cannot fill every requested tile.
+        # This is a usable-image warning; exit 2 and invalid/missing output fail.
+        if result.returncode not in (0, 1) or not jpeg:
             raise RuntimeError('MTN could not generate an image. Check the selected binary, font and video.')
+        if result.returncode == 1:
+            print('MTN warning: fewer frames were available than requested; review the generated image.', flush=True)
     if sheet:
         options=shlex.split(config.get('MediaTools','MTNSETTING',fallback='-c 4 -r 4'))
         footer=config.get('MediaTools','MTNPOSTBY',fallback='DirtyBytes').strip()
