@@ -42,7 +42,7 @@ def title_tag():
         'UnrarUpload',
         'TITLE_SUFFIX',
         fallback=config.get('UnrarUpload', 'TITLE_PREFIX', fallback='[UNRAR]')
-    ).strip()
+    ).strip() or '[UNRAR]'
 
 
 def title_separator():

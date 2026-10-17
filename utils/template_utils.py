@@ -5,12 +5,12 @@ def load_template(template_path):
     if not Path(template_path).exists():
         raise FileNotFoundError(f"Template file does not exist: {template_path}")
     
-    with open(template_path, 'r') as file:
+    with open(template_path, 'r', encoding='utf-8') as file:
         return file.read()
 
 def save_template(content, output_path):
     """Save the modified content to the output file."""
-    with open(output_path, 'w') as file:
+    with open(output_path, 'w', encoding='utf-8') as file:
         file.write(content)
 
 def replace_placeholder(template, placeholder, value):

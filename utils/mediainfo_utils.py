@@ -114,7 +114,7 @@ def generate_mediainfo(directory, tmp_dir, allow_sample_fallback=True):
     if mediainfo_output:
         mediainfo_output = mediainfo_output.strip()
         mediainfo_file_path = Path(tmp_dir) / 'mediainfo_output.txt'
-        with open(mediainfo_file_path, 'w') as file:
+        with open(mediainfo_file_path, 'w', encoding='utf-8') as file:
             file.write(mediainfo_output)
         
         print(f"{bcolors.OKGREEN}MediaInfo created and saved to: {mediainfo_file_path}\n{bcolors.ENDC}")

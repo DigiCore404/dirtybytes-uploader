@@ -7,7 +7,7 @@ MAX_UPLOAD_HISTORY_ROWS = 5000
 
 def create_uploads_table():
     """Create the uploads table in SQLite if it doesn't exist."""
-    conn = sqlite3.connect(UPLOADS_DB)
+    conn = sqlite3.connect(UPLOADS_DB, timeout=15)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS uploads (
@@ -41,7 +41,7 @@ def initialize_upload_database():
 
 def insert_upload(name, category=None, status=None, size=None, imdb_url=None, mediainfo=None, nfo_content=None, screenshot_url=None, image_url=None):
     """Insert a new upload record into the SQLite database with only the fields provided."""
-    conn = sqlite3.connect(UPLOADS_DB)
+    conn = sqlite3.connect(UPLOADS_DB, timeout=15)
     cursor = conn.cursor()
     date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -78,7 +78,7 @@ def insert_upload(name, category=None, status=None, size=None, imdb_url=None, me
 def update_upload_status(name, new_status=None, category=None, size=None, imdb_url=None, mediainfo=None, nfo=None,
                          screenshot_url=None, image_url=None):
     """Update the status and other details of an existing upload."""
-    conn = sqlite3.connect(UPLOADS_DB)
+    conn = sqlite3.connect(UPLOADS_DB, timeout=15)
     cursor = conn.cursor()
 
     # Build the SQL query dynamically based on provided fields

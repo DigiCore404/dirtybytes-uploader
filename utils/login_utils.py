@@ -22,7 +22,7 @@ TMP_DIR.mkdir(parents=True, exist_ok=True)
 SITEURL = config.get('Website', 'SITEURL')
 API_KEY = config.get('Website', 'API_KEY')
 REQUEST_TIMEOUT = config.getint('Network', 'Timeout', fallback=15)
-VERIFY_SSL = config.getboolean('Network', 'VERIFY_SSL', fallback=False)
+VERIFY_SSL = config.getboolean('Network', 'VERIFY_SSL', fallback=True)
 USER_AGENT = config.get('Network', 'UserAgent', fallback='Mozilla/5.0 (Windows NT 10.0; Win64; x64) dc_uploader/1.0')
 
 def get_api_headers():

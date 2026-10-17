@@ -73,6 +73,10 @@ def fail_exit(directory, cleanup_enabled, release_dir=None):
             update_status(release_dir, 'failed')
         except Exception as e:
             print(f"Could not set failed status on {release_dir}: {e}")
+        try:
+            update_upload_status(name=Path(release_dir).name, new_status='failed')
+        except Exception as e:
+            print(f"Could not record failed status for {release_dir}: {e}")
     cleanup_tmp_dir(directory, cleanup_enabled)
     sys.exit(1)
 
@@ -322,7 +326,7 @@ def main():
                     log(f"Error generating mediainfo: {str(e)}", log_file_path)
                 else:
                     if mediainfo_file_path and mediainfo_file_path.exists():
-                        with open(mediainfo_file_path, 'r') as file:
+                        with open(mediainfo_file_path, 'r', encoding='utf-8') as file:
                             mediainfo_content = file.read()
 
         ### Torrent creation section
@@ -352,9 +356,9 @@ def main():
         # Image upload processing
         print_section("UploadImages")
         job_event(stage='images')
-        if image_upload_enabled:
+        if image_upload_enabled or screenshots_enabled:
             try:
-                if not manual_images:
+                if image_upload_enabled and not manual_images:
                     source_image_urls = upload_images(directory)
                     if not source_image_urls and any(p.suffix.lower() in ('.jpg', '.jpeg', '.png', '.gif', '.webp')
                                                      for p in directory.rglob('*') if p.is_file()):
@@ -465,6 +469,7 @@ def main():
             if rar_source:
                 register_unrar_mount(original_release_name, directory, upload_result,
                     config.getfloat('UnrarUpload','RATIO_TARGET',fallback=2.5), archive_path=rar_source)
+            duplicate_response = upload_result.get('status_code') == 409
             upload_details['upload_status'] = 'uploaded'
             upload_details['site_upload_status'] = 'accepted'
             upload_details['seed_setup_status'] = 'watch_torrent_created'
@@ -501,6 +506,15 @@ def main():
             if unrar_result.get('torrent_name'):
                 upload_details['unrar_torrent_name'] = unrar_result.get('torrent_name')
 
+            if duplicate_response:
+                upload_details['upload_status'] = 'duplicate'
+                upload_details['site_upload_status'] = 'duplicate'
+                log_upload_details(upload_details, upload_log_path, duplicate_found=True)
+                update_status(directory, 'dupe')
+                update_upload_status(name=directory_name, new_status='dupe')
+                job_event(stage='duplicate', site_status='duplicate')
+                print('Existing torrent prepared for seeding. No new upload was created.')
+                sys.exit(10)
             log_upload_details(upload_details, upload_log_path, duplicate_found=False)
             update_status(directory, 'uploaded')
             update_upload_status(name=directory_name, new_status='uploaded')
@@ -533,6 +547,16 @@ def main():
         release_dir = locals().get('directory')
         if release_dir is not None:
             update_upload_status(name=release_dir.name, new_status='failed')
+        fail_exit(tmp_dir, cleanup_enabled, release_dir=release_dir)
+    except SystemExit:
+        raise
+    except Exception as e:
+        # Anything unexpected (e.g. an ambiguous category) must not leave the release stuck on 'uploading'.
+        release_dir = locals().get('directory')
+        if 'log_file_path' in locals():
+            log(f"Unexpected error: {e}", log_file_path)
+        job_event(error=str(e))
+        print(f"{bcolors.FAIL}Unexpected error: {e}{bcolors.ENDC}", flush=True)
         fail_exit(tmp_dir, cleanup_enabled, release_dir=release_dir)
     finally:
         cleanup_tmp_dir(tmp_dir, cleanup_enabled)

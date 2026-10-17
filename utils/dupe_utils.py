@@ -13,7 +13,7 @@ from utils.torrent_utils import download_torrent
 config = ConfigLoader().get_config()
 TMP_DIR = os.path.join(config.get('Paths', 'TMP_DIR'), str(os.getpid()))
 REQUEST_TIMEOUT = config.getint('Network', 'Timeout', fallback=60)
-VERIFY_SSL = config.getboolean('Network', 'VERIFY_SSL', fallback=False)
+VERIFY_SSL = config.getboolean('Network', 'VERIFY_SSL', fallback=True)
 
 # Ensure TMP_DIR exists
 os.makedirs(TMP_DIR, exist_ok=True)

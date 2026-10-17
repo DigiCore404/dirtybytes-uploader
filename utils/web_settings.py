@@ -93,7 +93,7 @@ def apply(config,changes):
     except ValueError:raise ValueError(field['label']+' needs a number.')
     low,high=field['range'] or (0,1000000)
     if not low<=number<=high or key!='ratio_target' and not number.is_integer():raise ValueError(field['label']+f' must be between {low} and {high}.')
-   if key in ('screenshot_categories','mediainfo_categories','categories') and text:
+   if (key.endswith('_categories') or key=='categories') and text:
     if not re.fullmatch(r'\d+(\s*,\s*\d+)*',text):raise ValueError('Categories must be comma-separated IDs.')
    if key.endswith('url') and text:
     parsed=urlparse(text)

@@ -17,6 +17,21 @@ import web
 
 
 class WebTests(unittest.TestCase):
+    def test_nonobject_options_and_metadata_return_400(self):
+        self.login()
+        for options in ([], None, 'invalid'):
+            response = self.post('/api/settings', {'options': options})
+            self.assertEqual(response.status_code, 400, response.text)
+        for metadata in ([], 'invalid', 42):
+            response = self.post('/api/review', {'source': str(self.release), 'category': 3, 'metadata': metadata})
+            self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(self.client.get(self.base + '/api/state').status_code, 200)
+
+    def test_missing_optional_icons_return_404(self):
+        with patch.object(web, 'ASSETS', self.root / 'missing-assets'):
+            for path in ('/favicon.ico', '/apple-touch-icon.png'):
+                self.assertEqual(self.client.get(self.base + path).status_code, 404)
+
     def test_ini_login_override_is_applied_once_on_web_start(self):
         with self.config.open('a', encoding='utf-8') as stream:
             stream.write('\n[Web]\nUSERNAME = recovered-owner\nPASSWORD = recovered-password\n')

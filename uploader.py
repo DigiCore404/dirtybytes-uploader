@@ -111,6 +111,8 @@ def check_writable(config):
 
 
 def validate_job(source, cat, description='', images=(), metadata=None, config=None):
+    if metadata is not None and not isinstance(metadata, dict):
+        raise ValueError('Metadata must be an object.')
     config = config or load_config()
     path = Path(source).expanduser()
     if not path.is_absolute():
@@ -157,6 +159,10 @@ def backend_command(job, job_path):
             *(['--cat', str(job['category'])] if job.get('category') is not None else []), '--job', str(job_path)]
 
 
+class UploadBusyError(ValueError):
+    """The worker has not started because another upload owns the lock."""
+
+
 @contextmanager
 def upload_lock():
     """OS lock releases on process exit, including an interrupted upload."""
@@ -175,7 +181,7 @@ def upload_lock():
                 import fcntl
                 fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
-            raise ValueError('Another upload is running. Wait for it to finish.') from exc
+            raise UploadBusyError('Another upload is running. Wait for it to finish.') from exc
         try:
             yield
         finally:
@@ -307,7 +313,18 @@ def watch(config, category, interval=None, stable=None, folder=None):
                     # Commit before upload: an interruption must never trigger an automatic repost.
                     db.execute('INSERT INTO jobs VALUES (?, ?)', (key, 'started'))
                     db.commit()
-                    result = run_job(job, config)
+                    try:
+                        result = run_job(job, config)
+                    except UploadBusyError:
+                        # The worker never started; only lock contention is safe to retry.
+                        db.execute('DELETE FROM jobs WHERE path=?', (key,))
+                        db.commit()
+                        raise
+                    except (OSError, ValueError):
+                        # Publication may already have happened; require inspection before retrying.
+                        db.execute('UPDATE jobs SET status=? WHERE path=?', ('needs_review', key))
+                        db.commit()
+                        raise
                     db.execute('UPDATE jobs SET status=? WHERE path=?',
                                ('finished' if result == 0 else 'duplicate' if result == 10 else 'needs_review', key))
                     db.commit()

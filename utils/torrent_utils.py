@@ -21,7 +21,7 @@ from utils.logging_utils import log_to_file
 config = ConfigLoader().get_config()
 ROOT_DIR = Path(__file__).resolve().parents[1]
 REQUEST_TIMEOUT = config.getint('Network', 'Timeout', fallback=60)
-VERIFY_SSL = config.getboolean('Network', 'VERIFY_SSL', fallback=False)
+VERIFY_SSL = config.getboolean('Network', 'VERIFY_SSL', fallback=True)
 TORRENT_DOWNLOAD_RETRIES = config.getint('Network', 'TorrentDownloadRetries', fallback=12)
 TORRENT_DOWNLOAD_RETRY_DELAY = config.getfloat('Network', 'TorrentDownloadRetryDelay', fallback=5.0)
 
@@ -486,7 +486,7 @@ def upload_torrent(
             )
         except requests.RequestException as e:
             log_download_event('upload_response.log', f"Request exception: {e}")
-            raise requests.RequestException(e)
+            raise
 
         response_code = response.status_code
         # Log the upload response
@@ -518,7 +518,7 @@ def upload_torrent(
                 torrent_url,
                 auth_headers,
                 torrent_name,
-                is_dupe=False,
+                is_dupe=response_code == 409,
                 allow_plain_fallback=allow_plain_fallback,
             )
             if not watch_torrent_path:
@@ -527,7 +527,7 @@ def upload_torrent(
                     if allow_local_upload_fallback is None
                     else bool(allow_local_upload_fallback)
                 )
-                if local_upload_fallback_enabled:
+                if local_upload_fallback_enabled and response_code == 200:
                     fallback_message = (
                         "Site torrent download failed after retries. Falling back to the locally generated "
                         f"uploaded torrent because the upload was accepted. This is usually safe when the "

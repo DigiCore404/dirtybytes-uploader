@@ -163,7 +163,7 @@ TorrentDownloadRetryDelay = 0
                     else:
                         fields[name] = value.decode('utf-8')
                 state['posts'].append(fields)
-                self.send_response(200)
+                self.send_response(409 if mode == 'upload-duplicate' else 200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(b'{"id":123,"name":"Test.Release"}' if mode != 'bad-confirmation' else b'not JSON')
