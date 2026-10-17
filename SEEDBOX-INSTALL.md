@@ -126,8 +126,9 @@ Replace the installation path and category. `%F` supplies the completed content 
 `%I` supplies its hash. This is a one-shot process, so no folder watcher or running web
 service is required. Test first with the same command plus `--dry-run`.
 
-The current callback requires a complete **release directory** inside DATADIR. A loose
-single file is rejected. Never pass the entire shared download directory instead.
+The callback accepts a complete **release directory or single file** inside DATADIR.
+For a single file, it creates a release folder beside the original using the link mode
+chosen in Settings. Never pass the entire shared download directory instead.
 Folder images/NFOs and screenshot settings supply the description; this command does
 not interactively request metadata. The fixed category applies to all callbacks.
 
@@ -244,7 +245,7 @@ own Debian/Ubuntu machine, `bash install.sh --system-deps --rar2fs` installs the
 On a managed seedbox your provider must supply FUSE support and permit user mounts;
 rootless application installation cannot enable a missing host FUSE device.
 
-Choose an archive mount directory outside your read-only media library. The
+Choose an archive mount directory outside your media library. The
 seeding client must see the same unpacked files and the mount must remain active
 while seeding. The hardened systemd user service disallows privilege elevation;
 a provider must explicitly permit fusermount if using rar2fs from that service.

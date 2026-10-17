@@ -56,7 +56,7 @@ def browse(value, config):
             if child.is_dir():
                 folders.append({'name': child.name, 'path': str(child)})
             elif child.is_file():
-                files.append({'name': child.name, 'size': child.stat().st_size})
+                files.append({'name': child.name, 'path': str(child), 'size': child.stat().st_size})
         except OSError:
             continue
         if len(folders) + len(files) >= 1000:
@@ -530,6 +530,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(workspace.clients.action(str(data.get('id', '')), str(data.get('hash', '')), str(data.get('action', ''))))
             if path == '/api/review':
                 return self.send(workspace.review(data))
+            if path == '/api/sources/prepare-file':
+                from utils.single_files import prepare
+                with workspace.lock:
+                    return self.send(prepare(str(data.get('source', '')), uploader.load_config()))
             if path == '/api/upload':
                 return self.send(workspace.upload(str(data.get('review_id', ''))), 202)
             if path == '/api/logout':

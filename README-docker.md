@@ -40,7 +40,7 @@ them or commit them. Back up the state directory privately.
 
 ## Storage and qBittorrent
 
-The uploader sees `MEDIA_DIR` at `/content`, read-only. Your download client needs
+The uploader sees `MEDIA_DIR` at `/content`, read/write so it can create a release folder and link beside a selected single file. Existing media files stay in place. Your download client needs
 write access to that same physical storage through its own mount. For example:
 
 | Component | Path |
@@ -79,7 +79,7 @@ uploaded normally. To mount RAR files without extracting them:
    It also creates synthetic container passwd/group files for your numeric UID/GID;
    your host's user database is never mounted into the container.
 4. Enable **Settings → Archive handling (UNRAR / rar2fs)**. `/mounts` is the
-   container's archive mount root; it is separate from read-only `/content`.
+   container's archive mount root; it is separate from `/content`.
 5. A qBittorrent container seeding the unpacked view must also mount the host's
    `STATE_DIR/mounts`, e.g. at `/unpacked`, with `rslave` propagation. Configure
    its save path to that unpacked release, or watch folder delivery accordingly.

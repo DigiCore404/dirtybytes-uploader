@@ -116,6 +116,9 @@ def validate_job(source, cat, description='', images=(), metadata=None, config=N
     if not path.is_absolute():
         path = Path(config.get('Paths', 'DATADIR')) / path
     path = path.resolve(strict=True)
+    if path.is_file():
+        from utils.single_files import prepare
+        path = Path(prepare(str(path), config)['source'])
     if not path.is_dir():
         raise ValueError('Choose a release folder containing your media, images and optional NFO.')
     if not any(p.is_file() for p in path.rglob('*')):
@@ -337,6 +340,9 @@ def run_backend_cli(arguments):
     if not source.is_absolute():
         source = Path(config.get('Paths', 'DATADIR')) / source
     source = source.resolve(strict=True)
+    if source.is_file():
+        from utils.single_files import prepare
+        source = Path(prepare(str(source), config)['source'])
     if not source.is_dir():
         raise ValueError('Choose a release folder.')
     if args.cat is not None and args.cat not in {row['id'] for row in categories()}:

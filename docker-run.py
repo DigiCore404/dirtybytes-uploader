@@ -9,7 +9,7 @@ import uploader
 
 def command(args, config):
     mounts = [(str(uploader.config_path()), '/app/config.ini', True),
-              (config.get('Paths', 'DATADIR'), '/content', True),
+              (config.get('Paths', 'DATADIR'), '/content', False),
               (config.get('Paths', 'WATCHFOLDER'), '/watch', False),
               (str(uploader.ROOT / 'data'), '/app/data', False),
               (str(uploader.ROOT / 'tmp'), '/app/tmp', False),

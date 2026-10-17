@@ -15,7 +15,7 @@ services:
       - type: bind
         source: ${MEDIA_DIR:?Run setup.sh with --media}
         target: /content
-        read_only: true
+        read_only: false
         bind: {create_host_path: false}
       - type: bind
         source: ${STATE_DIR:?Run setup.sh}/config

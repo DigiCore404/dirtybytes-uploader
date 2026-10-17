@@ -87,10 +87,12 @@ class TorrentMetadata:
     @classmethod
     def read_stream(cls,file):return cls(file.read(LIMIT+1))
     def validate(self):return True
-    def verify_filesize(self,source):
+    def verify_filesize(self,source,allowed_root=None):
         source=Path(source).resolve()
+        boundary=Path(allowed_root).resolve() if allowed_root is not None else source if source.is_dir() else source.parent
+        if not source.is_relative_to(boundary):return False
         for relative,size in zip(self.files,self.file_sizes):
             path=source if source.is_file() else source.joinpath(*relative.parts[1:]) if len(relative.parts)>1 else source/relative.name
             resolved=path.resolve(strict=True)
-            if not resolved.is_relative_to(source if source.is_dir() else source.parent) or not resolved.is_file() or resolved.stat().st_size!=size:return False
+            if not resolved.is_relative_to(boundary) or not resolved.is_file() or resolved.stat().st_size!=size:return False
         return True

@@ -5,8 +5,9 @@ from urllib.parse import urlparse
 ROOT=Path(__file__).resolve().parents[1]
 DEDICATED={('Website','api_key'),('Torrent','announceurl'),('Torrent','hasher'),('Paths','datadir'),('Paths','watchfolder'),('ImageHost','provider'),('ImageHost','api_key'),('ThePornDB','token'),('Metadata','search_ignore_words'),('MediaTools','screenshot_engine')}
 DEDICATED|={('Settings',k) for k in ('image_upload','screenshots','mediainfo','dupecheck')}
-TITLES={'MediaTools':'Screenshots & thumbnail sheets','Torrent':'Torrent creation & editing','Settings':'Upload behaviour','UploadForm':'DirtyBytes publication','Paths':'Files & folders','ImageHost':'Custom image host','Network':'Network & retries','UnrarUpload':'Archive handling (UNRAR / rar2fs)','Website':'DirtyBytes site'}
+TITLES={'MediaTools':'Screenshots & thumbnail sheets','Torrent':'Torrent creation & editing','Settings':'Upload behaviour','UploadForm':'DirtyBytes publication','Paths':'Files & folders','ImageHost':'Custom image host','Network':'Network & retries','UnrarUpload':'Archive handling (UNRAR / rar2fs)','Website':'DirtyBytes site','SingleFiles':'Single-file uploads'}
 HELP={
+ 'link_mode':'Hardlink: no duplicate data, requires the same filesystem. Softlink: a relative link; the original file must remain available to the uploader and seeding client. The release folder is created beside the original file, which stays in place.',
  'screenshot_sheet':'Generate one MTN thumbnail sheet with multiple frames. Requires MTN.',
  'screenshot_singles':'Number of separate screenshots, in addition to the MTN sheet (0–12). FFmpeg needs at least 1.',
  'mtnwidth':'Width of the generated sheet in pixels (320–7680).',
@@ -46,7 +47,7 @@ HELP={
  'log':'Archive-processing log file.', 'cleanup_log':'Archive-cleanup log file.', 'cleanup_after_qbit_remove':'Allow eligible mount cleanup after removing the linked client torrent.',
  'cleanup_grace_seconds':'Wait this many seconds before eligible archive cleanup.', 'keep_failed_mounts':'Keep a failed archive mount for diagnosis.',
  'regenerate_mediainfo':'Regenerate technical information for extracted media.', 'mount_ready_timeout':'Seconds to wait for a new archive mount to become readable.'}
-LABELS={'mtnwidth':'Sheet width (pixels)','mtnsetting':'MTN grid & layout','mtnpostby':'Sheet footer','mtnfontfile':'MTN font','mtnbin':'MTN executable','screenshot_sheet':'Thumbnail sheet','screenshot_singles':'Separate screenshots','sourcefolder':'Source torrent folder','mkbrr_bin':'mkbrr executable','esource':'Torrent source tag','ecomment':'Torrent comment','include_nfo':'Include folder NFO'}
+LABELS={'link_mode':'Link mode for single files','mtnwidth':'Sheet width (pixels)','mtnsetting':'MTN grid & layout','mtnpostby':'Sheet footer','mtnfontfile':'MTN font','mtnbin':'MTN executable','screenshot_sheet':'Thumbnail sheet','screenshot_singles':'Separate screenshots','sourcefolder':'Source torrent folder','mkbrr_bin':'mkbrr executable','esource':'Torrent source tag','ecomment':'Torrent comment','include_nfo':'Include folder NFO'}
 BOOL={'true','false'}
 RANGES={'screenshot_singles':(0,12),'mtnwidth':(320,7680),'timeout':(1,600),'torrentdownloadretries':(1,100),'torrentdownloadretrydelay':(0,300),'freeleech':(0,1),'anonymous':(0,1),'ratio_target':(0,1000),'cleanup_grace_seconds':(0,86400),'mount_ready_timeout':(1,600)}
 def defaults():
@@ -65,6 +66,9 @@ def schema(config):
    if key=='mtnwidth':value=re.search(r'\d+',value)[0] if re.search(r'\d+',value) else '1280'
    locked=os.environ.get('DIRTYBYTES_CONTAINER')=='1' and ((section=='Paths' and key in ('tmp_dir','uploadlog')) or (section=='UnrarUpload' and key in ('mount_base','registry','log','cleanup_log')))
    fields.append({'key':key,'label':LABELS.get(key,key.replace('_',' ').capitalize()),'help':HELP.get(key,''),'type':'secret' if secret else kind,'value':'' if secret else value,'saved':bool(value) if secret else False,'locked':locked,'range':RANGES.get(key)})
+  if section=='SingleFiles':
+   for field in fields:
+    if field['key']=='link_mode':field['type']='select';field['options']=[{'value':'hardlink','label':'Hardlink (same filesystem)'},{'value':'softlink','label':'Softlink (relative symbolic link)'}]
   if fields:result.append({'section':section,'title':TITLES.get(section,section),'fields':fields})
  return result
 
@@ -80,6 +84,7 @@ def apply(config,changes):
    text=str(value).strip()
    if len(text)>8000 or any(c in text for c in '\r\n\x00'):raise ValueError(field['label']+' must be a single line.')
    if field['type']=='secret' and not text:continue
+   if field['type']=='select' and text not in {option['value'] for option in field['options']}:raise ValueError('Choose a supported link mode.')
    if field['type']=='boolean':
     if text.lower() not in ('true','false'):raise ValueError(field['label']+' must be on or off.')
     text=text.lower()

@@ -72,3 +72,11 @@ tracker before retrying an interrupted upload.
 Bundled tools: mkbrr 1.27.0 and MTN 3.5.0. Docker also builds rar2fs 1.29.7 and
 UnRAR 7.3.1; FFmpeg and MediaInfo come from the image's system packages.
 For updates, persistent storage and optional RAR mounts, see [Docker details](README-docker.md).
+
+
+For a single file, select it in the content browser. The uploader creates a release
+folder beside it and adds a link. Choose **Hardlink** or **Softlink** in
+**Settings → Single-file uploads**. Hardlinks require the same filesystem;
+softlinks require the original file to stay accessible. No file data is copied.
+The seeding client must see both the release folder and original media through
+the same library mapping. The media mount needs write access to create the folder.

@@ -17,6 +17,30 @@ import web
 
 
 class WebTests(unittest.TestCase):
+    def test_single_file_preparation_requires_session_and_csrf_and_reviews_linked_folder(self):
+        source = self.content / 'Loose.Release.mkv'
+        source.write_bytes(b'loose test payload')
+        self.assertEqual(self.post('/api/sources/prepare-file', {'source': str(source)}).status_code, 401)
+        self.login()
+        listing = self.client.get(self.base + '/api/folders').json()
+        self.assertEqual(next(f for f in listing['files'] if f['name']==source.name)['path'], str(source))
+        token = self.csrf
+        self.csrf = 'incorrect'
+        self.assertEqual(self.post('/api/sources/prepare-file', {'source': str(source)}).status_code, 403)
+        self.csrf = token
+        response = self.post('/api/sources/prepare-file', {'source': str(source)})
+        self.assertEqual(response.status_code, 200, response.text)
+        folder = Path(response.json()['source'])
+        self.assertTrue((folder/source.name).samefile(source))
+        reviewed = self.post('/api/review', {'source': str(folder), 'category':3})
+        self.assertEqual(reviewed.status_code, 200, reviewed.text)
+        self.assertEqual(reviewed.json()['summary']['files'], 1)
+        self.assertTrue(source.is_file())
+        outside = self.root/'Outside.mkv'
+        outside.write_bytes(b'outside')
+        self.assertEqual(self.post('/api/sources/prepare-file', {'source': str(outside)}).status_code, 400)
+        self.assertFalse((self.root/'Outside').exists())
+
     def test_web_start_does_not_interrupt_active_cli_upload(self):
         self.server.workspace.history.create('external-cli', {'source': str(self.root / 'Release'), 'category': 6})
         with uploader.upload_lock():

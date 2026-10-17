@@ -129,6 +129,7 @@ TorrentDownloadRetryDelay = 0
         spec.loader.exec_module(module)
         cmd = module.command(['upload', str(self.release), '--cat', '25'], self.config)
         self.assertIn('/content/Test.Release', cmd)
+        self.assertIn('type=bind,source='+self.config.get('Paths', 'DATADIR')+',target=/content', cmd)
         self.assertTrue(any(str(self.root / 'content') in value for value in cmd))
         self.assertNotIn('-p', cmd)
 

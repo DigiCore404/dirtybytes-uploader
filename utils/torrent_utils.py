@@ -242,6 +242,8 @@ def create_torrent(directory,temp_dir,edit,hasher,total_size_bytes=None,exclude_
     source_folder=config.get('Torrent','SOURCEFOLDER',fallback='').strip()
     original=Path(source_folder)/(directory.name+'.torrent') if source_folder else None
     common=['--tracker',config.get('Torrent','ANNOUNCEURL'),'--private','--source',config.get('Torrent','ESOURCE'),'--comment',config.get('Torrent','ECOMMENT'),'--skip-prefix']
+    verification_root=Path(config.get('Paths','DATADIR')).resolve()
+    if not directory.is_relative_to(verification_root):verification_root=directory
     editing=False
     imported=None
     if source_torrent:
@@ -251,7 +253,7 @@ def create_torrent(directory,temp_dir,edit,hasher,total_size_bytes=None,exclude_
         if exclude_globs or exclude_regexs:raise ValueError('Import torrent editing cannot exclude payload files. Extracted/changed payloads need a separate new upload.')
     if (source_torrent or edit) and original and original.is_file() and not exclude_globs and not exclude_regexs:
         metadata=Torrent.read(original)
-        if metadata.name!=directory.name or not metadata.verify_filesize(directory):raise ValueError('Existing torrent does not match the selected release files.')
+        if metadata.name!=directory.name or not metadata.verify_filesize(directory,allowed_root=verification_root):raise ValueError('Existing torrent does not match the selected release files.')
         command=[binary,'modify',str(original),'--output',output.stem,'--output-dir',str(temp_dir),*common]
         editing=True
     else:
@@ -289,7 +291,7 @@ def create_torrent(directory,temp_dir,edit,hasher,total_size_bytes=None,exclude_
         raise RuntimeError('Edited torrent changed its piece hashes.')
     if metadata.trackers != [[config.get('Torrent','ANNOUNCEURL')]]:
         raise RuntimeError('Torrent tracker replacement failed; no upload was started.')
-    if not metadata.private or metadata.source!=config.get('Torrent','ESOURCE') or not metadata.verify_filesize(directory):raise RuntimeError('mkbrr output does not match the private release payload.')
+    if not metadata.private or metadata.source!=config.get('Torrent','ESOURCE') or not metadata.verify_filesize(directory,allowed_root=verification_root):raise RuntimeError('mkbrr output does not match the private release payload.')
     job_event(stage='hashing',hash_progress=1.0,hash_mode='editing' if editing else 'hashing',hash_total=int(total_size_bytes or 0))
     return str(output),metadata.piece_size
 

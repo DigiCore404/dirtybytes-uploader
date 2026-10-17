@@ -8,8 +8,8 @@ function renderConfigSettings(settings){
   const summary=element('summary','',section.title);details.append(summary);const grid=element('div','config-grid');
   for(const field of section.fields){
    const wrapper=element('div','config-field'),id='cfg-'+section.section+'-'+field.key;const label=element('label','',field.label);label.htmlFor=id;
-   const input=element('input');input.id=id;input.dataset.configSection=section.section;input.dataset.configKey=field.key;input.dataset.configType=field.type;
-   input.type={boolean:'checkbox',number:'number',secret:'password'}[field.type]||'text';input.disabled=field.locked;
+   const input=element(field.type==='select'?'select':'input');if(field.type==='select'){for(const option of field.options)input.append(new Option(option.label,option.value));}input.id=id;input.dataset.configSection=section.section;input.dataset.configKey=field.key;input.dataset.configType=field.type;
+   if(field.type!=='select')input.type={boolean:'checkbox',number:'number',secret:'password'}[field.type]||'text';input.disabled=field.locked;
    if(field.type==='boolean')input.checked=String(field.value).toLowerCase()==='true';else input.value=field.value;
    input.dataset.original=field.type==='boolean'?String(input.checked):input.value;
    if(field.type==='secret'){input.autocomplete='new-password';input.placeholder=field.saved?'Saved — leave blank to keep':'Not configured';}
