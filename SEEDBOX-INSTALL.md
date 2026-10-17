@@ -9,7 +9,7 @@ Based on the existing DirtyBytes/DC Uploader backend; attribution remains in the
 Upload the package to a folder you own on the seedbox, then connect over SSH:
 
 ```bash
-tar -xzf dirtybytes-uploader-seedbox-2.3.0.tar.gz
+tar -xzf dirtybytes-uploader-seedbox-2.3.1.tar.gz
 cd dirtybytes-uploader-seedbox
 bash install.sh
 ```

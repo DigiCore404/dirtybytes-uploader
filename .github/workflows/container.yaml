@@ -30,6 +30,7 @@ jobs:
           node tests/test_search_name.cjs
           node tests/test_catalogue.cjs
           node tests/test_catalogue_combine.cjs
+          node tests/test_activity_navigation.cjs
       - name: Build release image
         env:
           REVISION: ${{ github.sha }}

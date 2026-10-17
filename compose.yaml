@@ -1,7 +1,7 @@
 name: dirtybytes-uploader
 services:
   uploader:
-    image: ${IMAGE:-ghcr.io/digicore404/dirtybytes-uploader:2.3.0}
+    image: ${IMAGE:-ghcr.io/digicore404/dirtybytes-uploader:2.3.1}
     init: true
     user: "${PUID:?Run setup.sh}:${PGID:?Run setup.sh}"
     shm_size: 256m
