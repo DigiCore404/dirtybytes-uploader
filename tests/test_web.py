@@ -17,6 +17,24 @@ import web
 
 
 class WebTests(unittest.TestCase):
+    def test_ini_login_override_is_applied_once_on_web_start(self):
+        with self.config.open('a', encoding='utf-8') as stream:
+            stream.write('\n[Web]\nUSERNAME = recovered-owner\nPASSWORD = recovered-password\n')
+        restarted = web.create_server('127.0.0.1', 0, history_path=self.root / 'uploads.db')
+        try:
+            security = restarted.workspace.security
+            self.assertTrue(security.verify('recovered-owner', 'recovered-password'))
+            security.update({'username': 'recovered-owner', 'current_password': 'recovered-password',
+                             'password': 'later-web-password', 'allowed_ips': []}, '127.0.0.1')
+        finally:
+            restarted.server_close()
+        restarted = web.create_server('127.0.0.1', 0, history_path=self.root / 'uploads.db')
+        try:
+            self.assertTrue(restarted.workspace.security.verify('recovered-owner', 'later-web-password'))
+            self.assertFalse(restarted.workspace.security.verify('recovered-owner', 'recovered-password'))
+        finally:
+            restarted.server_close()
+
     def test_single_file_preparation_requires_session_and_csrf_and_reviews_linked_folder(self):
         source = self.content / 'Loose.Release.mkv'
         source.write_bytes(b'loose test payload')

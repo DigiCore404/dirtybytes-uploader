@@ -1,5 +1,13 @@
 # Install with Docker
 
+## Web interface
+
+An empty upload workspace and the built-in installation and seeding guide.
+
+![Empty upload workspace](docs/images/workspace-empty.png)
+
+![Built-in manuals and folder mapping](docs/images/manuals.png)
+
 The complete Linux amd64 image contains Python, Chromium for catalogue lookups,
 FFmpeg, MediaInfo, mkbrr, MTN, UnRAR and rar2fs.
 
@@ -111,3 +119,5 @@ Third-party tool licences are retained in `bin`. The image includes the rar2fs
 and UnRAR licences, corresponding source archives and build script under
 `/usr/local/share/dirtybytes-archive`. Source versions and SHA-256 checks are
 pinned in `scripts/build-archive-tools.sh`.
+
+To recover access, stop the web service and set `[Web] USERNAME` and a nonempty `PASSWORD` (12–256 characters) in the mounted config.ini. Start the service again: the login is replaced once and PASSWORD is cleared from the INI. This works with existing accounts; editing the bootstrap password in .env does not reset an existing login.

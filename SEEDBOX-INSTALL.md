@@ -47,10 +47,18 @@ small .torrent files, not media. Source files are never moved or renamed. The de
 local `content`, `content/incoming` and `watch` folders are created by the installer.
 If you choose different folders, create them and give your account the required access.
 
-Set an initial username and strong password in `[Web]` before first startup, or leave
-PASSWORD blank: the first start prints a generated login. Save that login. Later
-password/IP changes are stored in SQLite through Settings; changing the bootstrap
-password in config.ini does not reset an established login. Keep config.ini private.
+Set a username and strong password (12–256 characters) in `[Web]`, then start or restart the web service:
+
+```ini
+[Web]
+USERNAME = admin
+PASSWORD = choose-your-own-password
+```
+
+A nonempty `PASSWORD` overrides the saved login once. After saving the login in SQLite, the uploader clears `PASSWORD` in config.ini. Later restarts preserve your login and any changes made in Settings. Other settings and upload history are preserved. Keep config.ini private and writable by the uploader.
+
+If PASSWORD is empty and no saved login exists, the first web startup prints a generated login. With a background service, read it using `journalctl --user -u dirtybytes-uploader.service`.
+
 
 Forgot the workspace password? Stop the web service, then run this from the installation folder:
 

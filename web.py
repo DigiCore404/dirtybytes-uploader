@@ -112,6 +112,9 @@ class Workspace:
         self.history = JobHistory(database_path, legacy_path=database_path.with_name('web-history.json'))
         config = uploader.load_config()
         self.security = Security(self.history, password, os.environ.get('DIRTYBYTES_WEB_USERNAME') or config.get('Web', 'USERNAME', fallback='admin'), config.get('Web', 'ALLOWED_IPS', fallback=''))
+        if self.security.consume_ini_login(uploader.config_path()):
+            config.set('Web', 'PASSWORD', '')
+            print('Workspace login updated from config.ini; the one-time PASSWORD has been cleared.', flush=True)
         try:
             with uploader.upload_lock():
                 self.history.recover_interrupted()

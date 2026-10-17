@@ -4,7 +4,10 @@ import hmac
 import ipaddress
 import json
 import secrets
+import configparser
+import os
 import sqlite3
+import tempfile
 from pathlib import Path
 from contextlib import closing
 
@@ -73,6 +76,36 @@ def allows(address, rules):
 
 
 class Security:
+    def consume_ini_login(self, config_path):
+        """A nonempty INI password is a one-time local login override."""
+        path = Path(config_path)
+        config = configparser.ConfigParser(interpolation=None)
+        config.read(path, encoding='utf-8')
+        password = config.get('Web', 'PASSWORD', fallback='')
+        if not password:
+            return False
+        username = config.get('Web', 'USERNAME', fallback=self.state()['username']).strip()
+        if not 1 <= len(username) <= 100 or any(c in username for c in '\r\n\x00'):
+            raise ValueError('Web.USERNAME must contain between 1 and 100 characters.')
+        if not 12 <= len(password) <= 256:
+            raise ValueError('Web.PASSWORD must contain between 12 and 256 characters.')
+        config.set('Web', 'PASSWORD', '')
+        # Prepare a private replacement before changing the saved login.
+        fd, temporary = tempfile.mkstemp(prefix='.workspace-login-', dir=path.parent)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+                config.write(stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            with self.history.connect() as db:
+                db.execute('UPDATE workspace_security SET username=?,password_hash=? WHERE id=1',
+                           (username, password_hash(password)))
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        return True
+
     def __init__(self, history, password, username='admin', allowed_ips=''):
         self.history = history
         self.created = False

@@ -49,7 +49,7 @@ def source_files():
              'start-web.sh', 'docker-run.py', 'defaults.ini', 'config.example.ini', 'config.seedbox.ini',
              'requirements.txt', 'requirements.lock.txt', 'uploader.py', 'web.py', 'backend.py',
              'files/template.txt', 'files/filters.json', 'files/dirtybytes-categories.json']
-    for directory in ('utils', 'webui', 'bin', 'scripts', 'tests', '.github'):
+    for directory in ('utils', 'webui', 'bin', 'scripts', 'tests', '.github', 'docs'):
         names += [p.relative_to(ROOT).as_posix() for p in sorted((ROOT/directory).rglob('*'))
                   if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc']
     files = {name: (ROOT/name).read_bytes() for name in names}
