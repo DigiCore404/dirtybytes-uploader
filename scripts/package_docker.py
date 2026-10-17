@@ -10,7 +10,7 @@ try:
 except ModuleNotFoundError:
     from publication import ROOT, check
 
-VERSION = '2.3.2'
+VERSION = '2.3.3'
 
 
 def entries():

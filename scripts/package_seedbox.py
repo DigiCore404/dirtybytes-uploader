@@ -12,7 +12,7 @@ except ModuleNotFoundError:
 
 ROOT=Path(__file__).resolve().parents[1]
 NAME='dirtybytes-uploader-seedbox'
-VERSION='2.3.2'
+VERSION='2.3.3'
 
 
 def entries():

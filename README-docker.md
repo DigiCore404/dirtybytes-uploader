@@ -93,7 +93,7 @@ path mapping above; the ordinary import-root mapping is not sufficient.
 ## Update, logs and CLI
 
 ```bash
-bash setup.sh --image ghcr.io/digicore404/dirtybytes-uploader:2.3.2 --no-start
+bash setup.sh --image ghcr.io/digicore404/dirtybytes-uploader:2.3.3 --no-start
 docker compose pull
 docker compose up -d --wait
 docker compose logs --tail 100 uploader

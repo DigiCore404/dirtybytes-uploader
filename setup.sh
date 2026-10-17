@@ -18,7 +18,7 @@ read_env() {
     printf -v "$key" '%s' "$value"
   done < .env
 }
-IMAGE=ghcr.io/digicore404/dirtybytes-uploader:2.3.2
+IMAGE=ghcr.io/digicore404/dirtybytes-uploader:2.3.3
 MEDIA_DIR= STATE_DIR="$PWD/workspace" PUID="$(id -u)" PGID="$(id -g)"
 BIND_IP=127.0.0.1 PORT=6080 DIRTYBYTES_WEB_PASSWORD= COMPOSE_FILE=compose.yaml
 START=1 UNRAR=0 NEW=0

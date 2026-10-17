@@ -39,5 +39,5 @@ class SeedboxPackageTests(unittest.TestCase):
                 self.assertEqual(member.mode,package.mode(relative))
                 self.assertEqual((zip.getinfo(member.name).external_attr>>16)&0o777,member.mode)
                 self.assertEqual(tar.extractfile(member).read(),zip.read(member.name))
-        checksums=(ROOT/'dist/dirtybytes-uploader-seedbox-2.3.2.sha256').read_text()
+        checksums=(ROOT/'dist/dirtybytes-uploader-seedbox-2.3.3.sha256').read_text()
         for path in paths:self.assertIn(hashlib.sha256(path.read_bytes()).hexdigest()+'  '+path.name,checksums)

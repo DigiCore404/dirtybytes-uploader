@@ -10,8 +10,8 @@ on Linux x86_64; Synology users need Container Manager.
 
 ```bash
 mkdir dirtybytes-uploader && cd dirtybytes-uploader
-curl -fLO https://github.com/DigiCore404/dirtybytes-uploader/releases/download/v2.3.2/dirtybytes-uploader-docker-2.3.2.tar.gz
-tar -xzf dirtybytes-uploader-docker-2.3.2.tar.gz
+curl -fLO https://github.com/DigiCore404/dirtybytes-uploader/releases/download/v2.3.3/dirtybytes-uploader-docker-2.3.3.tar.gz
+tar -xzf dirtybytes-uploader-docker-2.3.3.tar.gz
 bash setup.sh --media /srv/media
 ```
 
@@ -25,8 +25,8 @@ When running setup as root, add your normal account's `--uid 1000 --gid 1000`.
 Requires Python 3.10+, venv, FFmpeg/ffprobe and MediaInfo. Use Debian 12+ or Ubuntu 22.04+.
 
 ```bash
-curl -fLO https://github.com/DigiCore404/dirtybytes-uploader/releases/download/v2.3.2/dirtybytes-uploader-seedbox-2.3.2.tar.gz
-tar -xzf dirtybytes-uploader-seedbox-2.3.2.tar.gz
+curl -fLO https://github.com/DigiCore404/dirtybytes-uploader/releases/download/v2.3.3/dirtybytes-uploader-seedbox-2.3.3.tar.gz
+tar -xzf dirtybytes-uploader-seedbox-2.3.3.tar.gz
 cd dirtybytes-uploader-seedbox
 bash install.sh
 bash start.sh web --host 127.0.0.1 --port 6080 --no-browser

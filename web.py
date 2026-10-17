@@ -375,13 +375,16 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == '/health':
             return self.send({'ok': True})
-        if path in ('/', '/app.css', '/app.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js'):
+        if path in ('/', '/app.css', '/app.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
             name, mime = {'/': ('index.html', 'text/html'), '/app.css': ('app.css', 'text/css'),
                           '/app.js': ('app.js', 'text/javascript'),
                           '/config-settings.js': ('config-settings.js', 'text/javascript'),
                           '/catalogue.js': ('catalogue.js', 'text/javascript'),
                           '/search-name.js': ('search-name.js', 'text/javascript'),
                           '/logo.svg': ('logo.svg', 'image/svg+xml'),
+                          '/favicon.svg': ('favicon.svg', 'image/svg+xml'),
+                          '/favicon.ico': ('favicon.ico', 'image/x-icon'),
+                          '/apple-touch-icon.png': ('apple-touch-icon.png', 'image/png'),
                           '/logo-light.svg': ('logo-light.svg', 'image/svg+xml')}[path]
             return self.send((ASSETS / name).read_bytes(), mime=mime)
         session = self.session()
