@@ -109,7 +109,7 @@ image with `setup.sh --image dirtybytes-uploader:local --media /srv/media`.
 ## GitHub / GHCR publishing
 
 The included workflow tests and scans the allowlisted source before publishing.
-Push a `v2.3.1` tag to publish the version and `latest`; main publishes `edge`.
+Push a `v2.3.2` tag to publish the version and `latest`; main publishes `edge`.
 GitHub's automatic `GITHUB_TOKEN` is used; no personal registry token is stored.
 The first GHCR package may need **Package settings → Change visibility → Public**.
 Verify a pull without signing in before advertising the image as publicly usable.
