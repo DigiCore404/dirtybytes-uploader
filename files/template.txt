@@ -7,3 +7,5 @@
 !screenshots!
 
 !nfo!
+
+[url=https://github.com/DigiCore404/dirtybytes-uploader]Created by DirtyBytes Uploader v!version![/url]
