@@ -23,11 +23,13 @@ An empty upload workspace and the built-in installation and seeding guide.
 The complete Linux amd64 image contains Python, Chromium for catalogue lookups,
 FFmpeg, MediaInfo, mkbrr, MTN, UnRAR and rar2fs.
 
-Download and extract the Docker installer from this repository's Releases page.
-Run on your server, choosing your existing media library:
+Clone the repository and run setup with your existing media library. Setup uses
+the published `ghcr.io/digicore404/dirtybytes-uploader:latest` image; no local build is needed:
 
 ```bash
-bash setup.sh --media /srv/media --bind 0.0.0.0
+git clone https://github.com/DigiCore404/dirtybytes-uploader.git
+cd dirtybytes-uploader
+bash setup.sh --media /srv/media --image ghcr.io/digicore404/dirtybytes-uploader:latest --bind 0.0.0.0
 ```
 
 The installer creates a private `.env`, generates a unique initial password,
@@ -40,8 +42,6 @@ reverse proxy for access over the internet.
 Run as a normal Docker-capable user. When installing as root, specify the user
 that should own the application files, e.g. `--uid 1000 --gid 1000`. Use your own
 account's numeric IDs (`id`). The installer never changes media ownership.
-Synology requires Container Manager and an x86_64 NAS; run the script over SSH,
-or import these same Compose files and the generated `.env` as a project.
 
 ## Which settings go where?
 
@@ -114,8 +114,8 @@ path mapping above; the ordinary import-root mapping is not sufficient.
 
 ```bash
 bash setup.sh --image ghcr.io/digicore404/dirtybytes-uploader:latest --no-start
-docker compose pull
-docker compose up -d --wait
+docker compose pull uploader
+docker compose up -d --no-deps --wait uploader
 docker compose logs --tail 100 uploader
 docker compose run --rm uploader check
 docker compose run --rm uploader upload /content/My.Release --cat 9 --dry-run

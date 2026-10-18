@@ -51,18 +51,17 @@ allows partial previews and logs the failed videos.
 ## Install with Docker
 
 Install [Docker Engine with Compose v2](https://docs.docker.com/engine/install/)
-on Linux x86_64; Synology users need Container Manager.
+on Linux x86_64.
 
 ```bash
-mkdir dirtybytes-uploader && cd dirtybytes-uploader
-curl -fLO https://github.com/DigiCore404/dirtybytes-uploader/releases/download/v2.3.3/dirtybytes-uploader-docker-2.3.3.tar.gz
-tar -xzf dirtybytes-uploader-docker-2.3.3.tar.gz
-bash setup.sh --media /srv/media
+git clone https://github.com/DigiCore404/dirtybytes-uploader.git
+cd dirtybytes-uploader
+bash setup.sh --media /srv/media --image ghcr.io/digicore404/dirtybytes-uploader:latest --bind 0.0.0.0
 ```
 
-Replace `/srv/media` with your existing media folder. Open `http://127.0.0.1:6080`,
+Replace `/srv/media` with your existing media folder. Open `http://<server-ip>:6080`,
 log in as `admin` with the password printed by setup, then open **Settings**.
-For direct LAN access add `--bind 0.0.0.0` to setup and use your server's IP.
+Use `--bind 127.0.0.1` instead to restrict access to the server itself.
 When running setup as root, add your normal account's `--uid 1000 --gid 1000`.
 
 ## Install without Docker
@@ -70,8 +69,8 @@ When running setup as root, add your normal account's `--uid 1000 --gid 1000`.
 Requires Python 3.10+, venv, FFmpeg/ffprobe and MediaInfo. Use Debian 12+ or Ubuntu 22.04+.
 
 ```bash
-curl -fLO https://github.com/DigiCore404/dirtybytes-uploader/releases/download/v2.3.3/dirtybytes-uploader-seedbox-2.3.3.tar.gz
-tar -xzf dirtybytes-uploader-seedbox-2.3.3.tar.gz
+curl -fLO https://github.com/DigiCore404/dirtybytes-uploader/releases/download/v2.4.1/dirtybytes-uploader-seedbox-2.4.1.tar.gz
+tar -xzf dirtybytes-uploader-seedbox-2.4.1.tar.gz
 cd dirtybytes-uploader-seedbox
 bash install.sh
 bash start.sh web --host 127.0.0.1 --port 6080 --no-browser
