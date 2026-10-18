@@ -119,6 +119,32 @@ Use the appropriate category ID for your release.
 
 Requires Python 3.10+, venv, FFmpeg/ffprobe and MediaInfo. Use Debian 12+ or Ubuntu 22.04+.
 
+For RAR archive uploads without extracting first, you also need **FUSE 2
+(`fuse` / `libfuse2`), rar2fs and UnRAR**. These are not installed by the default
+native installation. The installer builds rar2fs and UnRAR with `--rar2fs`;
+it needs a C++ compiler, make, autoconf, automake, libtool, pkg-config, curl,
+CA certificates and FUSE development headers (`libfuse-dev`).
+
+On your own Debian/Ubuntu server, run this from the unpacked installation directory:
+
+```bash
+bash install.sh --system-deps --rar2fs
+```
+
+On a managed seedbox, ask your provider to supply the system/build dependencies,
+`/dev/fuse` access and permission to use `fusermount`, then run as your normal user:
+
+```bash
+bash install.sh --rar2fs
+```
+
+You do not need root to run the uploader; installing missing system packages or
+enabling host FUSE requires your administrator/provider. Enable **Settings →
+Archive handling (UNRAR / rar2fs)** after installation. Keep archive mounts active
+and accessible to your torrent client for as long as you seed their unpacked files.
+FUSE, rar2fs and UnRAR are only needed for the archive feature; ordinary media
+uploads work without them. See [native installation details](SEEDBOX-INSTALL.md#optional-unrar--rar2fs).
+
 ```bash
 curl -fLO https://github.com/DigiCore404/dirtybytes-uploader/releases/download/v2.4.1/dirtybytes-uploader-seedbox-2.4.1.tar.gz
 tar -xzf dirtybytes-uploader-seedbox-2.4.1.tar.gz
