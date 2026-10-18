@@ -201,7 +201,7 @@ class Workspace:
                     raise ValueError('Choose a supported image host.')
                 config.set('ImageHost', 'PROVIDER', selected)
                 if selected != 'custom':
-                    config.set('ImageHost', 'UPLOADIMGURL', 'https://imghost.dev/api/1/upload' if selected == 'imghost' else '')
+                    config.set('ImageHost', 'UPLOADIMGURL', 'https://api.imgbb.com/1/upload' if selected == 'imgbb' else 'https://imghost.dev/api/1/upload' if selected == 'imghost' else '')
             config.set('Torrent','HASHER','mkbrr')
             if 'screenshot_engine' in data:
                 engine=str(data['screenshot_engine'])

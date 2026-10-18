@@ -77,6 +77,7 @@ class UpdateApiTests(unittest.TestCase):
         self.assertEqual(response.status_code,200,response.text)
         self.assertNotIn('imgbb-private-test-key',response.text)
         self.assertEqual(uploader.load_config().get('ImageHost','PROVIDER'),'imgbb')
+        self.assertEqual(uploader.load_config().get('ImageHost','UPLOADIMGURL'),'https://api.imgbb.com/1/upload')
         self.assertEqual(uploader.load_config().get('ImageHost','API_KEY'),'imgbb-private-test-key')
         self.assertEqual(self.post('/api/settings',{'image_host_key':''}).status_code,200)
         self.assertEqual(uploader.load_config().get('ImageHost','API_KEY'),'imgbb-private-test-key')
