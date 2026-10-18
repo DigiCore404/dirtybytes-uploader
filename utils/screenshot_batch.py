@@ -1,5 +1,6 @@
 """Select one representative video or generate isolated previews for every video."""
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -9,11 +10,16 @@ import tempfile
 from utils.mediainfo_utils import iter_media_files, media_priority, is_sample_path
 
 
-def generate_batch(directory, config, generate_candidate):
+def generate_batch(directory, config, generate_candidate, category_id=None):
     directory = Path(directory)
-    mode = config.get('MediaTools', 'SCREENSHOT_VIDEO_MODE', fallback='single').strip().lower()
-    if mode not in ('single', 'all'):
-        raise ValueError('Choose single or all for MediaTools.SCREENSHOT_VIDEO_MODE.')
+    mode = config.get('MediaTools', 'SCREENSHOT_VIDEO_MODE', fallback='auto').strip().lower()
+    if mode not in ('auto', 'single', 'all'):
+        raise ValueError('Choose auto, single or all for MediaTools.SCREENSHOT_VIDEO_MODE.')
+    if mode == 'auto':
+        categories = json.loads((Path(__file__).resolve().parents[1] / 'files/dirtybytes-categories.json').read_text(encoding='utf-8'))
+        pack = any(str(row['id']) == str(category_id) and 'PACKS' in row['name'].upper().split('/') for row in categories)
+        mode = 'all' if pack else 'single'
+        print('Automatic video selection: ' + ('all videos (pack).' if pack else 'one video (single release).'), flush=True)
     files = sorted(iter_media_files(directory), key=media_priority)
     main = [path for path in files if not is_sample_path(path)]
     samples = [path for path in files if is_sample_path(path)]

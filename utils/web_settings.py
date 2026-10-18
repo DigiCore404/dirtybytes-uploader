@@ -8,7 +8,7 @@ DEDICATED|={('Settings',k) for k in ('image_upload','screenshots','mediainfo','d
 TITLES={'MediaTools':'Screenshots & thumbnail sheets','Torrent':'Torrent creation & editing','Settings':'Upload behaviour','UploadForm':'DirtyBytes publication','Paths':'Files & folders','ImageHost':'Custom image host','Network':'Network & retries','UnrarUpload':'Archive handling (UNRAR / rar2fs)','Website':'DirtyBytes site','SingleFiles':'Single-file uploads'}
 HELP={
  'link_mode':'Hardlink: no duplicate data, requires the same filesystem. Softlink: a relative link; the original file must remain available to the uploader and seeding client. The release folder is created beside the original file, which stays in place.',
- 'screenshot_video_mode':'One video: use the first working main video. All videos: create previews for every main video in the release, including subfolders. Sheet and separate screenshot counts apply to each video. Used by both web and CLI.',
+ 'screenshot_video_mode':'Automatic (default): all videos for pack categories, one video for other releases. One video: use the first working main video. All videos: create previews for every main video in the release, including subfolders. Sheet and separate screenshot counts apply to each video. Used by both web and CLI.',
  'screenshot_sheet':'Generate one contact sheet per selected video. Requires the MTN engine.',
  'screenshot_singles':'Number of separate screenshots, in addition to the MTN sheet (0–12). FFmpeg needs at least 1.',
  'mtnwidth':'Width of the generated sheet in pixels (320–7680).',
@@ -69,7 +69,7 @@ def schema(config):
    fields.append({'key':key,'label':LABELS.get(key,key.replace('_',' ').capitalize()),'help':HELP.get(key,''),'type':'secret' if secret else kind,'value':'' if secret else value,'saved':bool(value) if secret else False,'locked':locked,'range':RANGES.get(key)})
   if section=='MediaTools':
    for field in fields:
-    if field['key']=='screenshot_video_mode':field['type']='select';field['options']=[{'value':'single','label':'One video'},{'value':'all','label':'All videos (packs / site rips)'}]
+    if field['key']=='screenshot_video_mode':field['type']='select';field['options']=[{'value':'auto','label':'Automatic (packs: all / other: one)'},{'value':'single','label':'One video'},{'value':'all','label':'All videos (packs / site rips)'}]
   if section=='SingleFiles':
    for field in fields:
     if field['key']=='link_mode':field['type']='select';field['options']=[{'value':'hardlink','label':'Hardlink (same filesystem)'},{'value':'softlink','label':'Softlink (relative symbolic link)'}]

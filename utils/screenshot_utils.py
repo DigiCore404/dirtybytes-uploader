@@ -8,7 +8,7 @@ from utils.screenshot_batch import generate_batch
 
 def generate_screenshots(directory, category_id):
     config = ConfigLoader().get_config()
-    return generate_batch(directory, config, generate_candidate)
+    return generate_batch(directory, config, generate_candidate, category_id=category_id)
 
 
 def generate_candidate(source,target,config):

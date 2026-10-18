@@ -22,7 +22,8 @@ Built-in installation and seeding guide:
 ![Screenshot and MTN configuration](docs/images/screenshot-settings.jpg)
 
 In **Settings → Screenshots & thumbnail sheets → Videos to capture**, choose
-**One video** (default) or **All videos (packs / site rips)**. All videos processes
+**Automatic** (default: all videos for pack categories, one for other releases),
+**One video**, or **All videos (packs / site rips)**. All videos processes
 every main video, including subfolders, with separate screenshot counts and an
 optional MTN contact sheet for each video. Samples and extras are skipped when
 main videos exist. Use the MTN engine for contact sheets; FFmpeg creates separate
@@ -32,13 +33,14 @@ For CLI configuration:
 
 ```ini
 [MediaTools]
-SCREENSHOT_VIDEO_MODE = all
+SCREENSHOT_VIDEO_MODE = auto
 SCREENSHOT_ENGINE = mtn
 SCREENSHOT_SHEET = true
 SCREENSHOT_SINGLES = 3
 ```
 
-This creates one sheet and three separate screenshots per video. With required
+For packs, this creates one sheet and three separate screenshots per video;
+other release categories use one video. With required
 screenshots enabled, a failed video stops publication; disabling that option
 allows partial previews and logs the failed videos.
 

@@ -77,11 +77,24 @@ class ScreenshotBatchTests(unittest.TestCase):
         self.config.set('Settings', 'SCREENSHOT_SAMPLE_FALLBACK', 'true')
         generate_batch(self.media, self.config, self.capture)
         self.assertEqual(len(list(self.target.glob('*.jpg'))), 2)
+    def test_automatic_mode_uses_pack_category_and_keeps_manual_overrides(self):
+        import json
+        rows = json.loads((ROOT / 'files/dirtybytes-categories.json').read_text(encoding='utf-8'))
+        packs = [r['id'] for r in rows if 'PACKS' in r['name'].upper().split('/')]
+        singles = [r['id'] for r in rows if r['id'] not in packs]
+        self.video('a/video.mp4', b'first')
+        self.video('b/video.mp4', b'second')
+        for mode, categories, expected in [('auto', packs, 4), ('auto', singles, 2), ('single', packs, 2), ('all', singles, 4)]:
+            self.config.set('MediaTools', 'SCREENSHOT_VIDEO_MODE', mode)
+            for category in categories:
+                with self.subTest(mode=mode, category=category):
+                    generate_batch(self.media, self.config, self.capture, category_id=str(category))
+                    self.assertEqual(len(list(self.target.glob('*.jpg'))), expected)
     def test_settings_roundtrip_for_web_and_cli(self):
-        self.assertEqual(defaults().get('MediaTools', 'SCREENSHOT_VIDEO_MODE'), 'single')
+        self.assertEqual(defaults().get('MediaTools', 'SCREENSHOT_VIDEO_MODE'), 'auto')
         field = next(f for s in schema(self.config) for f in s['fields'] if f['key'] == 'screenshot_video_mode')
         self.assertEqual(field['type'], 'select')
-        self.assertEqual({o['value'] for o in field['options']}, {'single', 'all'})
+        self.assertEqual({o['value'] for o in field['options']}, {'auto', 'single', 'all'})
         apply(self.config, {'MediaTools': {'screenshot_video_mode': 'all'}})
         path = self.root / 'config.ini'
         with path.open('w') as stream:
@@ -125,7 +138,7 @@ class PackPublicationTests(unittest.TestCase):
         if not find_tool('mkbrr', self.config) or not find_tool('mtn', self.config):
             self.skipTest('Native mkbrr and MTN required')
         state = self.serve()
-        category = self.job()['category']
+        category = 26
         for folder, pattern in [('a', 'testsrc2'), ('b', 'smptebars')]:
             path = self.release / folder / 'video.mp4'
             path.parent.mkdir()
@@ -135,12 +148,12 @@ class PackPublicationTests(unittest.TestCase):
         config.set('Settings', 'SCREENSHOTS', 'true')
         config.set('Settings', 'SCREENSHOT_CATEGORIES', str(category))
         config.add_section('MediaTools')
-        for key, value in {'SCREENSHOT_VIDEO_MODE':'all', 'SCREENSHOT_ENGINE':'mtn', 'SCREENSHOT_SHEET':'true', 'SCREENSHOT_SINGLES':'1'}.items():
+        for key, value in {'SCREENSHOT_VIDEO_MODE':'auto', 'SCREENSHOT_ENGINE':'mtn', 'SCREENSHOT_SHEET':'true', 'SCREENSHOT_SINGLES':'1'}.items():
             config.set('MediaTools', key, value)
         with self.cfg.open('w') as stream:
             config.write(stream)
         config = uploader.load_config()
         output = []
-        self.assertEqual(uploader.run_job(self.job(), config, output.append), 0, '\n'.join(output))
+        self.assertEqual(uploader.run_job(uploader.validate_job(self.release, category, config=config), config, output.append), 0, '\n'.join(output))
         self.assertEqual(state['images'], 4)
         self.assertIn('https://example.invalid/uploaded.jpg', state['posts'][0]['nfo'])
