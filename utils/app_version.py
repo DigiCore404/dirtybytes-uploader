@@ -1,5 +1,5 @@
 """Application identity, independent of saved user configuration."""
-VERSION = "2.4.3"
+VERSION = "2.4.4"
 NAME = "DirtyBytes Uploader"
 SLUG = "dirtybytes-uploader"
 REPOSITORY = "DigiCore404/dirtybytes-uploader"
