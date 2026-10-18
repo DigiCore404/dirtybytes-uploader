@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 def load_template(template_path):
     """Load the template file from the given path."""
@@ -33,4 +34,16 @@ def prepare_template(template_path, output_path, replacements):
     for placeholder, value in replacements.items():
         template = replace_placeholder(template, placeholder, value)
 
+    # Empty optional sections should not leave a screen of blank lines.
+    blocks = []
+    def protect(match):
+        blocks.append(match.group(0))
+        return '\ue100' + str(len(blocks) - 1) + '\ue101'
+    template = re.sub(r'\[(code|nfo|pre)(?:=[^\]]*)?\][\s\S]*?\[/\1\]', protect, template, flags=re.I)
+    previous = None
+    while previous != template:
+        previous = template
+        template = re.sub(r'\[(c|center|b|i|u|s|size|color)(?:=[^\]]*)?\]\s*\[/\1\]', '', template, flags=re.I)
+    template = re.sub(r'\n{3,}', '\n\n', template).strip()
+    template = re.sub(r'\ue100(\d+)\ue101', lambda match: blocks[int(match.group(1))], template)
     save_template(template, output_path)

@@ -1,6 +1,6 @@
-[b]!releasename![/b]
+[c][b]!releasename![/b][/c]
 
-!description!
+[c]!description![/c]
 
 !imageupload!
 
@@ -8,4 +8,4 @@
 
 !nfo!
 
-[url=https://github.com/DigiCore404/dirtybytes-uploader]Created by DirtyBytes Uploader v!version![/url]
+[c][url=https://github.com/DigiCore404/dirtybytes-uploader]Created by DirtyBytes Uploader v!version![/url][/c]
