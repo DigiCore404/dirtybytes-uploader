@@ -33,6 +33,11 @@ def post(config,filename,raw):
     elif name=='dirtybytes':
         endpoint=config.get('Website','SITEURL').rstrip('/')+'/api/v1/images/upload'
         headers={'X-API-KEY':config.get('Website','API_KEY')};field='file'
+    elif name=='imgbb':
+        endpoint='https://api.imgbb.com/1/upload'
+        key=config.get('ImageHost','API_KEY',fallback='').strip()
+        if not key:raise ValueError('Add your ImgBB API key in Settings first.')
+        headers={};field='image';data={'key':key,'name':filename.rsplit('.',1)[0]}
     elif name=='custom':
         endpoint=config.get('ImageHost','UPLOADIMGURL');headers={'Authorization':config.get('ImageHost','AUTHCODE',fallback='')};field='file'
     else:raise ValueError('Choose a supported image host.')
@@ -45,7 +50,8 @@ def image_url(response):
     if response.status_code not in (200,201):return ''
     try:
         result=response.json()
-        value=(result.get('image') or {}).get('url') or (result.get('data') or {}).get('link') or ''
+        if result.get('success') is False:return ''
+        value=(result.get('image') or {}).get('url') or (result.get('data') or {}).get('link') or (result.get('data') or {}).get('url') or ''
         parsed=urlparse(value)
         return value if parsed.scheme in ('http','https') and parsed.hostname and not parsed.username and not parsed.password and not any(c in value for c in '[]\r\n') else ''
     except (ValueError,TypeError,AttributeError):return ''

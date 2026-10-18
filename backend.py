@@ -100,7 +100,8 @@ def main():
     tmp_dir = Path(config.get('Paths', 'TMP_DIR')) / str(os.getpid())
     cleanup_enabled = config.getboolean('Settings', 'CLEANUP')
 
-    program_version = config.get('Header', 'VERSION')
+    from utils.app_version import VERSION
+    program_version = VERSION
 
     try:
         hasher = config.get('Torrent', 'HASHER').strip()

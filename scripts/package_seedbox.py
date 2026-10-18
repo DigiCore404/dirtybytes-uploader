@@ -1,6 +1,8 @@
 """Produce a credential-free native Linux distribution with portable permissions."""
 from pathlib import Path
 import hashlib
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import gzip
 import io
 import tarfile
@@ -12,7 +14,7 @@ except ModuleNotFoundError:
 
 ROOT=Path(__file__).resolve().parents[1]
 NAME='dirtybytes-uploader-seedbox'
-VERSION='2.3.3'
+from utils.app_version import VERSION
 
 
 def entries():

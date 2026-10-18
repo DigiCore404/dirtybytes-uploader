@@ -124,3 +124,26 @@ folder beside it and adds a link. Choose **Hardlink** or **Softlink** in
 softlinks require the original file to stay accessible. No file data is copied.
 The seeding client must see both the release folder and original media through
 the same library mapping. The media mount needs write access to create the folder.
+
+## Updates and image hosts
+
+**Settings → Uploader updates** checks for new stable releases automatically.
+When a newer version exists, a banner links to release notes and update steps for
+Docker Compose, a Git checkout, or a seedbox package. **Check for updates** checks
+again; configuration, credentials and upload history remain on your own server.
+New Docker installations follow `latest`; an existing pinned image must be
+changed to `latest` in its existing Compose project to follow stable releases.
+Older installations need one manual update to gain this notification feature.
+
+Choose **ImgBB** in Settings and enter your ImgBB API key in **Image host API key**.
+This applies to browser images, folder images and screenshots from web or CLI.
+For CLI configuration:
+
+```ini
+[ImageHost]
+PROVIDER = imgbb
+API_KEY =
+```
+
+Fill API_KEY privately with your ImgBB key. To use the site's own image host,
+select it in Settings; no separate image-host key is needed.

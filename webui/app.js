@@ -46,7 +46,7 @@ function updateState(next) {
   updateHistoryStats(next.history);
   if (!historyRows.length && !historyFilter) {historyRows=next.jobs; historyTotal=next.history.total; renderActivity(historyRows); historyFooter();}
 }
-async function boot() { try {const data = await api('/api/state'); updateState(data); $('login').hidden=true; $('app').hidden=false; if (data.active) { page('activity'); openJob(data.active); }} catch (error) { if (!state) showLogin(); else toast(error.message,true); } }
+async function boot() { try {const data = await api('/api/state'); updateState(data); $('login').hidden=true; $('app').hidden=false; if(typeof refreshUpdates==='function')refreshUpdates(); if (data.active) { page('activity'); openJob(data.active); }} catch (error) { if (!state) showLogin(); else toast(error.message,true); } }
 $('login-form').addEventListener('submit', async event => { event.preventDefault(); const button=event.submitter; button.disabled=true; $('login-error').textContent=''; try {await api('/api/login',{username:$('access-username').value,password:$('access-password').value}); $('access-password').value=''; await boot();} catch(error){$('login-error').textContent=error.message;} finally{button.disabled=false;} });
 document.querySelectorAll('[data-page]').forEach(el=>el.addEventListener('click',()=>page(el.dataset.page)));
 $('logout').addEventListener('click',async()=>{try{await api('/api/logout',{});state=null;showLogin();}catch(e){toast(e.message,true);}});

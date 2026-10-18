@@ -1,0 +1,6 @@
+"""Application identity, independent of saved user configuration."""
+VERSION = "2.4.0"
+NAME = "DirtyBytes Uploader"
+SLUG = "dirtybytes-uploader"
+REPOSITORY = "DigiCore404/dirtybytes-uploader"
+CONTAINER_ENV = "DIRTYBYTES_CONTAINER"

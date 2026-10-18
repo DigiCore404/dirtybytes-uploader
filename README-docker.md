@@ -113,7 +113,7 @@ path mapping above; the ordinary import-root mapping is not sufficient.
 ## Update, logs and CLI
 
 ```bash
-bash setup.sh --image ghcr.io/digicore404/dirtybytes-uploader:2.3.3 --no-start
+bash setup.sh --image ghcr.io/digicore404/dirtybytes-uploader:latest --no-start
 docker compose pull
 docker compose up -d --wait
 docker compose logs --tail 100 uploader
@@ -133,3 +133,5 @@ and UnRAR licences, corresponding source archives and build script under
 pinned in `scripts/build-archive-tools.sh`.
 
 To recover access, stop the web service and set `[Web] USERNAME` and a nonempty `PASSWORD` (12–256 characters) in the mounted config.ini. Start the service again: the login is replaced once and PASSWORD is cleared from the INI. This works with existing accounts; editing the bootstrap password in .env does not reset an existing login.
+
+Update notifications and installation-specific instructions are available in the web interface under **Settings → Uploader updates**. `latest` follows stable releases; `edge` follows main. Finish active uploads before recreating the uploader container, and keep its existing configuration and data volumes.

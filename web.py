@@ -25,6 +25,8 @@ from utils.catalogue_browser import fetch as catalogue_browser_page
 from utils.web_security import Security
 from utils.delivery import remote_root, check_mapping
 import uploader
+from utils.app_version import VERSION
+from utils.update_check import ReleaseChecker
 
 ASSETS = Path(__file__).resolve().parent / 'webui'
 OPTIONS = ('IMAGE_UPLOAD', 'SCREENSHOTS', 'MEDIAINFO', 'DUPECHECK')
@@ -122,6 +124,7 @@ class Workspace:
             pass  # An external CLI worker still owns the shared upload lock.
         self.clients = QbitClients(self.history)
         self.imports = ImportQueue(self)
+        self.updates = ReleaseChecker()
 
     def enrich(self, jobs):
         clients = self.clients.all()
@@ -150,7 +153,7 @@ class Workspace:
             errors.append(str(exc))
         history = self.history.page()
         self.enrich(history['jobs'])
-        return {'categories': uploader.categories(), 'settings': {
+        return {'version': VERSION, 'categories': uploader.categories(), 'settings': {
             'site': config.get('Website', 'SITEURL'),
             'has_api_key': bool(config.get('Website', 'API_KEY').strip()),
             'has_announce': bool(config.get('Torrent', 'ANNOUNCEURL').strip()),
@@ -194,7 +197,7 @@ class Workspace:
                 config.set('Metadata', 'SEARCH_IGNORE_WORDS', '\n'.join(clean_words(data['metadata_ignore_words'])))
             if 'image_host' in data:
                 selected = str(data['image_host'])
-                if selected not in ('dirtybytes', 'imghost', 'custom'):
+                if selected not in ('dirtybytes', 'imghost', 'imgbb', 'custom'):
                     raise ValueError('Choose a supported image host.')
                 config.set('ImageHost', 'PROVIDER', selected)
                 if selected != 'custom':
@@ -385,10 +388,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == '/health':
             return self.send({'ok': True})
-        if path in ('/', '/app.css', '/app.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
+        if path in ('/', '/app.css', '/app.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/updates.js', '/updates.css', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
             name, mime = {'/': ('index.html', 'text/html'), '/app.css': ('app.css', 'text/css'),
                           '/app.js': ('app.js', 'text/javascript'),
                           '/config-settings.js': ('config-settings.js', 'text/javascript'),
+                          '/updates.js': ('updates.js', 'text/javascript'),
+                          '/updates.css': ('updates.css', 'text/css'),
                           '/catalogue.js': ('catalogue.js', 'text/javascript'),
                           '/search-name.js': ('search-name.js', 'text/javascript'),
                           '/logo.svg': ('logo.svg', 'image/svg+xml'),
@@ -405,6 +410,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send({'error': 'Please sign in.'}, 401)
         try:
             workspace = self.server.workspace
+            if path == '/api/updates':
+                return self.send(workspace.updates.status(uploader.load_config().getboolean('Settings', 'CHECK_UPDATES', fallback=True)))
             if path == '/api/security':
                 return self.send(dict(workspace.security.state(), current_ip=self.client_address[0]))
             if path == '/api/imports':
@@ -481,6 +488,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send({'error': 'Please sign in.'}, 401)
             if not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), session['csrf']):
                 return self.send({'error': 'Session check failed. Refresh and try again.'}, 403)
+            if path == '/api/updates/check':
+                return self.send(workspace.updates.status(uploader.load_config().getboolean('Settings', 'CHECK_UPDATES', fallback=True), force=True))
             if path == '/api/catalogue/fetch':
                 return self.send(catalogue_fetch(str(data.get('url', ''))))
             if path == '/api/images/preview':

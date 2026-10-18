@@ -1,5 +1,7 @@
 """Build the small end-user Docker installer without source or private data."""
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import gzip
 import hashlib
 import io
@@ -10,7 +12,7 @@ try:
 except ModuleNotFoundError:
     from publication import ROOT, check
 
-VERSION = '2.3.3'
+from utils.app_version import VERSION
 
 
 def entries():
