@@ -1,6 +1,8 @@
 'use strict';
 function renderConfigSettings(settings,categories=[]){
  const target=document.getElementById('config-settings');if(!target)return;
+ const filtersPanel=document.getElementById('category-filters-panel');
+ const hostPanel=document.getElementById('image-host-form');
  const hostFields=document.getElementById('image-host-advanced');hostFields.replaceChildren();
  const open=new Set(Array.from(target.querySelectorAll('details[open]')).map(x=>x.dataset.section));const first=!target.children.length;target.replaceChildren();
  const intro=element('div','config-intro');intro.append(element('h2','','Uploader configuration'),element('p','','These controls save directly to '+settings.config_file+'. Both the web service and CLI use this file. Client connections and workspace access have their own controls.'));target.append(intro);
@@ -8,6 +10,7 @@ function renderConfigSettings(settings,categories=[]){
   const details=element('details','card config-section');details.dataset.section=section.section;details.open=open.has(section.section)||(first&&section.section==='MediaTools');
   const summary=element('summary','',section.title);details.append(summary);const grid=element('div','config-grid');
   for(const field of section.fields){
+   if(section.section==='ImageHost'&&field.key!=='nsfw')continue;
    const wrapper=element('div','config-field'),id='cfg-'+section.section+'-'+field.key;const label=element('label','',field.label);label.htmlFor=id;
    const input=element(field.type==='select'?'select':'input');if(field.type==='select'){for(const option of field.options)input.append(new Option(option.label,option.value));}input.id=id;input.dataset.configSection=section.section;input.dataset.configKey=field.key;input.dataset.configType=field.type;
    if(field.type!=='select')input.type={boolean:'checkbox',number:'number',secret:'password'}[field.type]||'text';input.disabled=field.locked;
@@ -31,13 +34,14 @@ function renderConfigSettings(settings,categories=[]){
    }
    grid.append(wrapper);
   }
-  if(section.section==='ImageHost')hostFields.append(...grid.children);else{details.append(grid);target.append(details);}
+  if(section.section==='ImageHost'){hostFields.append(...grid.children);target.append(hostPanel);}else{details.append(grid);target.append(details);}
  }
+ target.append(filtersPanel);
  const save=element('div','settings-savebar'),button=element('button','button primary','Save uploader settings');button.type='submit';save.append(element('span','','One configuration for WebUI and CLI.'),button);target.append(save);
 }
 function collectConfigSettings(scope=document.getElementById('settings-form')){
  const changes={};for(const input of scope.querySelectorAll('[data-config-key]')){
-  if(input.disabled)continue;const value=input.type==='checkbox'?String(input.checked):input.value;
+  if(input.disabled||scope.id==='settings-form'&&input.closest('#image-host-form'))continue;const value=input.type==='checkbox'?String(input.checked):input.value;
   if(value===input.dataset.original||input.dataset.configType==='secret'&&!value)continue;
   const section=input.dataset.configSection;(changes[section]||={})[input.dataset.configKey]=value;
  }return changes;
@@ -52,10 +56,10 @@ function updateImageHostFields(){
   digitalcore:'DigitalCore’s image host is ready to use. No separate image-host key is needed.',
   imgbb:'Enter your ImgBB API key. Covers, screenshots and contact sheets will use ImgBB.',
   imghost:'Enter your imghost.dev API key.',
-  custom:'Enter your upload API URL and, if required, its Authorization value below.'
+
  }[host]||'';
  for(const input of document.querySelectorAll('#image-host-advanced [data-config-key]')){
-  const visible=input.dataset.configKey==='nsfw'?host==='imghost':host==='custom';
+  const visible=input.dataset.configKey==='nsfw'&&host==='imghost';
   input.closest('.config-field').hidden=!visible;
  }
 }

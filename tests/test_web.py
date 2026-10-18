@@ -80,6 +80,114 @@ class WebTests(unittest.TestCase):
             another = web.Workspace('test-access', self.root / 'uploads.db')
         self.assertEqual(another.history.get('external-cli')['status'], 'running')
 
+    def test_api_connection_check_requires_auth_csrf_and_does_not_save(self):
+        payload = {'target': 'site', 'api_key': 'unsaved-test-value'}
+        self.assertEqual(self.post('/api/settings/test', payload).status_code, 401)
+        self.login()
+        saved = self.config.read_bytes()
+        token = self.csrf
+        self.csrf = 'wrong-token'
+        self.assertEqual(self.post('/api/settings/test', payload).status_code, 403)
+        self.csrf = token
+        with patch.object(web, 'check_api_connection', return_value={'ok': True, 'message': 'Connected.'}) as check:
+            response = self.post('/api/settings/test', payload)
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()['ok'])
+            self.assertEqual(self.post('/api/settings/test', payload).status_code, 429)
+            check.assert_called_once()
+        self.assertEqual(self.config.read_bytes(), saved)
+
+    def library_rules(self):
+        identity = uploader.categories()[0]['id']
+        return {'RELEASES': {'patterns': {'initial': ['Sample'], 'exclude_patterns': []}, 'categories': [{'name': 'Test', 'cat_id': str(identity), 'patterns': ['Sample'], 'exclude_patterns': []}]}}, identity
+
+    def test_library_folders_preview_and_access_boundaries(self):
+        self.assertEqual(self.client.get(self.base + '/api/library').status_code, 401)
+        self.login()
+        rules, identity = self.library_rules()
+        saved = self.post('/api/category-filters', {'text': json.dumps(rules)})
+        self.assertEqual(saved.status_code, 200, saved.text)
+        response = self.client.get(self.base + '/api/library').json()
+        row = next(row for row in response['folders'] if row['name'] == self.release.name)
+        self.assertEqual(row['category']['id'], identity)
+        self.assertEqual(self.post('/api/library/folders', {'path': str(self.release)}).status_code, 200)
+        self.assertIn(str(self.release), self.server.workspace.library.folders())
+        from utils.library import Library
+        self.assertIn(str(self.release), Library(self.server.workspace.history).folders())
+        self.assertEqual(self.post('/api/library/folders', {'path': str(self.root)}).status_code, 400)
+        self.assertEqual(self.post('/api/library/folders', {'action': 'remove', 'path': str(self.release)}).status_code, 200)
+        self.assertTrue(self.release.is_dir())
+
+    def test_filter_editor_validation_and_unsaved_preview(self):
+        self.login()
+        original = self.config.read_bytes()
+        for text in ['invalid JSON', '[]', json.dumps({'G': {'patterns': {'initial': ['[']}, 'categories': []}}), json.dumps({'G': {'patterns': {'initial': ['x']}, 'categories': [{'cat_id': '999999'}]}})]:
+            response = self.post('/api/category-filters', {'text': text})
+            self.assertEqual(response.status_code, 400, response.text)
+            self.assertEqual(self.config.read_bytes(), original)
+        rules, identity = self.library_rules()
+        tested = self.post('/api/category-filters/test', {'text': json.dumps(rules), 'name': 'Sample.Release'})
+        self.assertEqual(tested.json()['category']['id'], identity)
+        self.assertEqual(self.config.read_bytes(), original)
+        saved = self.post('/api/category-filters', {'text': json.dumps(rules)})
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(Path(uploader.load_config().get('Paths', 'FILTERS')), self.config.parent / 'filters.json')
+        self.assertEqual(json.loads((self.config.parent / 'filters.json').read_text()), rules)
+
+    def test_library_direct_upload_uses_filters_without_category_prompt(self):
+        self.login()
+        rules, identity = self.library_rules()
+        self.assertEqual(self.post('/api/category-filters', {'text': json.dumps(rules)}).status_code, 200)
+        with patch.object(self.server.workspace, 'upload', return_value={'id': 'library-test'}) as upload:
+            response = self.post('/api/library/upload', {'source': str(self.release), 'expected_category': identity})
+            self.assertEqual(response.status_code, 202, response.text)
+            job = self.server.workspace.drafts[upload.call_args.args[0]]['job']
+            self.assertEqual(job['category'], identity)
+            self.assertEqual(job['source'], str(self.release))
+        unknown = self.content / 'NoMatch'
+        unknown.mkdir(); (unknown / 'video.mp4').write_bytes(b'test')
+        with patch.object(self.server.workspace, 'upload') as upload:
+            self.assertEqual(self.post('/api/library/upload', {'source': str(unknown)}).status_code, 400)
+            self.assertEqual(self.post('/api/library/upload', {'source': str(self.root)}).status_code, 400)
+            self.assertEqual(self.post('/api/library/upload', {'source': str(self.release), 'expected_category': 999999}).status_code, 400)
+            upload.assert_not_called()
+
+    def test_library_upload_metadata_and_category_override(self):
+        self.login()
+        identity = uploader.categories()[-1]['id']
+        with patch.object(self.server.workspace, 'upload', return_value={'id': 'metadata-test'}) as upload:
+            result = self.post('/api/library/upload', {'source': str(self.release), 'category': identity, 'description': 'My description', 'metadata': {'content_tags': 'Drama, Comedy'}, 'images': ['https://example.invalid/cover.jpg']})
+            self.assertEqual(result.status_code, 202, result.text)
+            job = self.server.workspace.drafts[upload.call_args.args[0]]['job']
+            self.assertEqual(job['category'], identity)
+            self.assertEqual(job['description'], 'My description')
+            self.assertEqual(job['metadata']['content_tags'], 'Drama, Comedy')
+        self.assertEqual(self.post('/api/library/upload', {'source': str(self.release), 'category': identity, 'metadata': 'bad'}).status_code, 400)
+
+    def test_unrelated_settings_ignore_stale_import_path(self):
+        self.login()
+        with self.config.open('a', encoding='utf-8') as output:
+            output.write('\n[Imports]\nLOCAL_ROOT = /old/missing/content\n')
+        response = self.post('/api/settings', {'options': {'DUPECHECK': False}})
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_library_single_file_creates_link_only_when_uploading(self):
+        self.login()
+        rules, identity = self.library_rules()
+        self.assertEqual(self.post('/api/category-filters', {'text': json.dumps(rules)}).status_code, 200)
+        loose = self.content / 'Sample.Loose.mkv'
+        loose.write_bytes(b'unchanged source data')
+        before = loose.read_bytes()
+        self.assertEqual(self.client.get(self.base + '/api/library').status_code, 200)
+        self.assertFalse((self.content / 'Sample.Loose').exists())
+        with patch.object(self.server.workspace, 'upload', return_value={'id': 'file-test'}) as upload:
+            response = self.post('/api/library/upload', {'source': str(loose)})
+            self.assertEqual(response.status_code, 202, response.text)
+            job = self.server.workspace.drafts[upload.call_args.args[0]]['job']
+            self.assertEqual(job['category'], identity)
+            self.assertTrue((Path(job['source']) / loose.name).samefile(loose))
+        self.assertEqual(loose.read_bytes(), before)
+
     def setUp(self):
         (ROOT / 'tmp').mkdir(exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(dir=ROOT / 'tmp')

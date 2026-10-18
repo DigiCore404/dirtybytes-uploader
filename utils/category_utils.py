@@ -21,7 +21,7 @@ def load_filters():
 
 def _search_any(patterns, name):
     return any(
-        pattern.strip() and re.search(pattern, name, re.IGNORECASE)
+        re.search(pattern, name, re.IGNORECASE)
         for pattern in patterns or []
     )
 
@@ -31,6 +31,10 @@ def determine_category(directory_name, manual_id=None):
     filters = load_filters()
 
     if manual_id is not None:
+        catalog = json.loads((Path(__file__).resolve().parents[1] / 'files/dirtybytes-categories.json').read_text(encoding='utf-8'))
+        for category in catalog:
+            if int(category['id']) == int(manual_id):
+                return category['name'], str(int(manual_id))
         # Manual override: validate against the IDs present in filters.json
         for filter_config in filters.values():
             for category_info in filter_config.get('categories', []):

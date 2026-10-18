@@ -27,6 +27,8 @@ from utils.delivery import remote_root, check_mapping
 import uploader
 from utils.app_version import VERSION
 from utils.update_check import ReleaseChecker
+from utils.connection_tests import check as check_api_connection
+from utils.library import Library, load_rules, match_category, validate_rules, save_rules
 
 ASSETS = Path(__file__).resolve().parent / 'webui'
 OPTIONS = ('IMAGE_UPLOAD', 'SCREENSHOTS', 'MEDIAINFO', 'DUPECHECK')
@@ -45,7 +47,7 @@ def content_path(value, config):
     return path
 
 
-def browse(value, config):
+def browse(value, config, max_entries=1000):
     path = content_path(value, config)
     root = Path(config.get('Paths', 'DATADIR')).resolve()
     folders, files = [], []
@@ -61,7 +63,7 @@ def browse(value, config):
                 files.append({'name': child.name, 'path': str(child), 'size': child.stat().st_size})
         except OSError:
             continue
-        if len(folders) + len(files) >= 1000:
+        if max_entries and len(folders) + len(files) >= max_entries:
             break
     return {'path': str(path), 'root': str(root), 'parent': str(path.parent) if path != root else None,
             'folders': folders, 'files': files}
@@ -125,6 +127,7 @@ class Workspace:
         self.clients = QbitClients(self.history)
         self.imports = ImportQueue(self)
         self.updates = ReleaseChecker()
+        self.library = Library(self.history)
 
     def enrich(self, jobs):
         clients = self.clients.all()
@@ -197,7 +200,7 @@ class Workspace:
                 config.set('Metadata', 'SEARCH_IGNORE_WORDS', '\n'.join(clean_words(data['metadata_ignore_words'])))
             if 'image_host' in data:
                 selected = str(data['image_host'])
-                if selected not in ('dirtybytes', 'imghost', 'imgbb', 'custom'):
+                if selected not in ('dirtybytes', 'imghost', 'imgbb'):
                     raise ValueError('Choose a supported image host.')
                 config.set('ImageHost', 'PROVIDER', selected)
                 if selected != 'custom':
@@ -388,9 +391,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == '/health':
             return self.send({'ok': True})
-        if path in ('/', '/app.css', '/app.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/updates.js', '/updates.css', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
+        if path in ('/', '/app.css', '/app.js', '/library.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/updates.js', '/updates.css', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
             name, mime = {'/': ('index.html', 'text/html'), '/app.css': ('app.css', 'text/css'),
                           '/app.js': ('app.js', 'text/javascript'),
+                          '/library.js': ('library.js', 'text/javascript'),
                           '/config-settings.js': ('config-settings.js', 'text/javascript'),
                           '/updates.js': ('updates.js', 'text/javascript'),
                           '/updates.css': ('updates.css', 'text/css'),
@@ -423,6 +427,19 @@ class Handler(BaseHTTPRequestHandler):
                     state = workspace.state()
                     state['csrf'] = session['csrf']
                 return self.send(state)
+            if path == '/api/category-filters':
+                config = uploader.load_config()
+                return self.send({'text': Path(config.get('Paths', 'FILTERS')).read_text(encoding='utf-8'), 'path': config.get('Paths', 'FILTERS')})
+            if path == '/api/library':
+                query = parse_qs(urlparse(self.path).query)
+                config = uploader.load_config()
+                listing = browse(query.get('path', [''])[0], config, max_entries=None)
+                rules = load_rules(config)
+                categories = uploader.categories()
+                for row in listing['folders'] + listing['files']:
+                    row['category'] = match_category(row['name'], rules, categories)
+                listing['saved_folders'] = workspace.library.folders()
+                return self.send(listing)
             if path == '/api/folders':
                 query = parse_qs(urlparse(self.path).query)
                 return self.send(browse(query.get('path', [''])[0], uploader.load_config()))
@@ -460,7 +477,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
                 return self.send({'error': 'JSON request required.'}, 415)
             size = int(self.headers.get('Content-Length', '0'))
-            if not 0 < size <= (12 * 1024 * 1024 if urlparse(self.path).path == '/api/images/upload' else 6 * 1024 * 1024 if urlparse(self.path).path == '/api/imports/add' else 100000):
+            if not 0 < size <= (12 * 1024 * 1024 if urlparse(self.path).path == '/api/images/upload' else 6 * 1024 * 1024 if urlparse(self.path).path == '/api/imports/add' else 600000 if urlparse(self.path).path in ('/api/category-filters', '/api/category-filters/test') else 100000):
                 return self.send({'error': 'Request is too large or empty.'}, 413)
             data = json.loads(self.rfile.read(size))
             if not isinstance(data, dict):
@@ -488,6 +505,64 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send({'error': 'Please sign in.'}, 401)
             if not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), session['csrf']):
                 return self.send({'error': 'Session check failed. Refresh and try again.'}, 403)
+            if path == '/api/library/folders':
+                if data.get('action') == 'remove':
+                    workspace.library.remove(str(data.get('path', '')))
+                else:
+                    workspace.library.add(content_path(str(data.get('path', '')), uploader.load_config()))
+                return self.send({'folders': workspace.library.folders()})
+            if path == '/api/library/upload':
+                config = uploader.load_config()
+                root = Path(config.get('Paths', 'DATADIR')).resolve()
+                source = Path(str(data.get('source', ''))).expanduser()
+                source = (source if source.is_absolute() else root / source).resolve(strict=True)
+                if not source.is_relative_to(root) or source == root or not (source.is_dir() or source.is_file()):
+                    raise ValueError('Choose a release folder or file inside the content library.')
+                category = data.get('category')
+                if category is None:
+                    detected = match_category(source.name, load_rules(config), uploader.categories())
+                    if not detected:
+                        raise ValueError('No filters.json rule matched. Edit the filters or correct the category in Library.')
+                    category = detected['id']
+                    if data.get('expected_category') is not None and data['expected_category'] != category:
+                        raise ValueError('Category filters changed. Refresh Library before uploading.')
+                if category not in {row['id'] for row in uploader.categories()}:
+                    raise ValueError('Choose a valid site category.')
+                if not isinstance(data.get('metadata', {}), dict) or not isinstance(data.get('images', []), list) or any(not isinstance(url, str) for url in data.get('images', [])):
+                    raise ValueError('Metadata must be an object and images must be a list of URLs.')
+                with workspace.lock:
+                    if workspace.active:
+                        raise ValueError('An upload is already running. Follow it in Activity.')
+                    if source.is_file():
+                        from utils.single_files import prepare
+                        source = Path(prepare(str(source), config)['source'])
+                    draft = workspace.review({'source': str(source), 'category': category, 'description': data.get('description', ''), 'metadata': data.get('metadata', {}), 'images': data.get('images', [])})
+                    return self.send(workspace.upload(draft['review_id']), 202)
+            if path == '/api/category-filters/test':
+                name = str(data.get('name', '')).strip()
+                if not name or len(name) > 500:
+                    raise ValueError('Enter a release name to test (up to 500 characters).')
+                config = uploader.load_config()
+                rules = validate_rules(data['text'], uploader.categories()) if 'text' in data else load_rules(config)
+                return self.send({'category': match_category(name, rules, uploader.categories())})
+            if path == '/api/category-filters':
+                with uploader.upload_lock():
+                    with workspace.lock:
+                        if workspace.active:
+                            raise ValueError('Wait for the upload to finish before changing category filters.')
+                        save_rules(data.get('text'), uploader.config_path(), uploader.categories())
+                        workspace.drafts.clear()
+                return self.send({'ok': True, 'message': 'filters.json saved for automatic uploads in web and CLI.'})
+            if path == '/api/settings/test':
+                target = str(data.get('target', ''))
+                with workspace.lock:
+                    recent = getattr(workspace, 'api_test_times', {})
+                    now = time.monotonic()
+                    if now - recent.get(target, -100) < 3:
+                        return self.send({'error': 'Wait a few seconds before testing this API again.'}, 429)
+                    recent[target] = now
+                    workspace.api_test_times = recent
+                return self.send(check_api_connection(uploader.load_config(), data))
             if path == '/api/updates/check':
                 return self.send(workspace.updates.status(uploader.load_config().getboolean('Settings', 'CHECK_UPDATES', fallback=True), force=True))
             if path == '/api/catalogue/fetch':
