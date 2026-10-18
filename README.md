@@ -21,6 +21,27 @@ Built-in installation and seeding guide:
 
 ![Screenshot and MTN configuration](docs/images/screenshot-settings.jpg)
 
+In **Settings → Screenshots & thumbnail sheets → Videos to capture**, choose
+**One video** (default) or **All videos (packs / site rips)**. All videos processes
+every main video, including subfolders, with separate screenshot counts and an
+optional MTN contact sheet for each video. Samples and extras are skipped when
+main videos exist. Use the MTN engine for contact sheets; FFmpeg creates separate
+screenshots only. These settings apply to browser uploads, imports and CLI uploads.
+
+For CLI configuration:
+
+```ini
+[MediaTools]
+SCREENSHOT_VIDEO_MODE = all
+SCREENSHOT_ENGINE = mtn
+SCREENSHOT_SHEET = true
+SCREENSHOT_SINGLES = 3
+```
+
+This creates one sheet and three separate screenshots per video. With required
+screenshots enabled, a failed video stops publication; disabling that option
+allows partial previews and logs the failed videos.
+
 ### Metadata search
 
 ![Empty metadata search](docs/images/metadata-search.jpg)

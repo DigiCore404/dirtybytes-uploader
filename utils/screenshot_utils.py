@@ -1,37 +1,36 @@
-"""Screenshot generation using the configured FFmpeg or MTN engine."""
+"""Screenshot generation shared by browser uploads and CLI workers."""
 import json
-import os
 import subprocess
 from pathlib import Path
 from utils.config_loader import ConfigLoader
-from utils.mediainfo_utils import iter_media_files, media_priority, is_sample_path
+from utils.screenshot_batch import generate_batch
 
 
 def generate_screenshots(directory, category_id):
     config = ConfigLoader().get_config()
-    files = sorted(iter_media_files(directory), key=media_priority)
-    main_files = [p for p in files if not is_sample_path(p)]
-    if main_files:
-        files = main_files
-    if not main_files and not config.getboolean('Settings','SCREENSHOT_SAMPLE_FALLBACK',fallback=True):
-        print('Only sample videos found; sample fallback is disabled.')
-        return
-    if not files:
-        print('No video found; screenshots skipped.')
-        return
-    source = files[0]
+    return generate_batch(directory, config, generate_candidate)
+
+
+def generate_candidate(source,target,config):
     probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                             '-of', 'json', str(source)], capture_output=True, text=True,
                            check=True, timeout=60)
     duration = float(json.loads(probe.stdout)['format']['duration'])
     if duration <= 0:
         raise ValueError('Video duration is not valid.')
-    target = Path(config.get('Paths', 'TMP_DIR')) / str(os.getpid()) / 'screens'
+    target = Path(target)
     target.mkdir(parents=True, exist_ok=True)
     engine=config.get('MediaTools','SCREENSHOT_ENGINE',fallback='ffmpeg').strip().lower()
     if engine=='mtn':
         from utils.mtn_screenshots import generate
-        return generate(source,target,duration,config)
+        try:return generate(source,target,duration,config)
+        except (OSError,ValueError,RuntimeError,subprocess.SubprocessError):
+            if not config.get('MediaTools','MTNBIN',fallback='').strip():raise
+            import copy
+            fallback=copy.deepcopy(config);fallback.set('MediaTools','MTNBIN','')
+            for image in target.glob('*.jpg'):image.unlink()
+            print('Configured MTN failed; trying the bundled/system MTN.',flush=True)
+            return generate(source,target,duration,fallback)
     if engine!='ffmpeg':raise ValueError('Choose ffmpeg or mtn as the screenshot engine.')
     count = min(12, max(1, config.getint('MediaTools', 'SCREENSHOT_SINGLES', fallback=5)))
     for i in range(1, count + 1):

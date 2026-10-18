@@ -404,11 +404,12 @@ MEDIAINFO = false
 
     def test_full_config_settings_persist_and_redact_secrets(self):
         self.login()
-        fields={'MediaTools':{'screenshot_sheet':'true','screenshot_singles':'3','mtnsetting':'-c 2 -r 8 -D 8'},'Settings':{'include_nfo':'true'},'ImageHost':{'authcode':'private-image-secret'}}
+        fields={'MediaTools':{'screenshot_sheet':'true','screenshot_singles':'3','screenshot_video_mode':'all','mtnsetting':'-c 2 -r 8 -D 8'},'Settings':{'include_nfo':'true'},'ImageHost':{'authcode':'private-image-secret'}}
         response=self.post('/api/settings',{'config_fields':fields})
         self.assertEqual(response.status_code,200,response.text)
         self.assertNotIn('private-image-secret',response.text)
         self.assertEqual(uploader.load_config().getint('MediaTools','screenshot_singles'),3)
+        self.assertEqual(uploader.load_config().get('MediaTools','screenshot_video_mode'),'all')
         self.assertTrue(uploader.load_config().getboolean('MediaTools','screenshot_sheet'))
         self.assertEqual(uploader.load_config().get('ImageHost','authcode'),'private-image-secret')
         invalid=self.post('/api/settings',{'config_fields':{'MediaTools':{'screenshot_singles':'99'}}})
