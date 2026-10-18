@@ -23,35 +23,83 @@ An empty upload workspace and the built-in installation and seeding guide.
 The complete Linux amd64 image contains Python, Chromium for catalogue lookups,
 FFmpeg, MediaInfo, mkbrr, MTN, UnRAR and rar2fs.
 
-Clone the repository and run setup with your existing media library. Setup uses
-the published `ghcr.io/digicore404/dirtybytes-uploader:latest` image; no local build is needed:
+## Docker Compose installation
+
+Requires Docker Compose v2 and an amd64 / x86_64 host. Create a directory for the
+uploader and its persistent files:
 
 ```bash
-git clone https://github.com/DigiCore404/dirtybytes-uploader.git
+mkdir -p dirtybytes-uploader/workspace/{config,data,tmp,logs,watch,mounts}
 cd dirtybytes-uploader
-bash setup.sh --media /srv/media --image ghcr.io/digicore404/dirtybytes-uploader:latest --bind 0.0.0.0
 ```
 
-The installer creates a private `.env`, generates a unique initial password,
-prepares writable application folders and starts the service. Open
-`http://<server-ip>:6080`, username `admin`, and use the printed password.
-Change your login in **Settings → Workspace access**. Without `--bind`, access
-is restricted to the server itself (`127.0.0.1`). Use an SSH tunnel or your HTTPS
-reverse proxy for access over the internet.
+Save this as `compose.yaml`. Replace `/srv/media` with your media folder and
+`1000:1000` with your account's UID:GID (run `id` to find them). The workspace
+directories must be writable by that account.
 
-Run as a normal Docker-capable user. When installing as root, specify the user
-that should own the application files, e.g. `--uid 1000 --gid 1000`. Use your own
-account's numeric IDs (`id`). The installer never changes media ownership.
+```yaml
+services:
+  uploader:
+    image: ghcr.io/digicore404/dirtybytes-uploader:latest
+    init: true
+    user: "1000:1000"
+    shm_size: 256m
+    restart: unless-stopped
+    ports:
+      - "6080:6080"
+    environment:
+      DIRTYBYTES_CONFIG: /config/config.ini
+      DIRTYBYTES_WEB_PASSWORD: ${WORKSPACE_PASSWORD:?Set WORKSPACE_PASSWORD in .env}
+    volumes:
+      - /srv/media:/content
+      - ./workspace/config:/config
+      - ./workspace/data:/app/data
+      - ./workspace/tmp:/app/tmp
+      - ./workspace/logs:/app/logs
+      - ./workspace/watch:/watch
+      - ./workspace/mounts:/mounts
+```
+
+Create `.env` beside `compose.yaml`, choosing your own password of at least 12
+characters. Use single quotes to keep special characters literal:
+
+```dotenv
+WORKSPACE_PASSWORD='replace-with-your-own-long-password'
+```
+
+Start the uploader:
+
+```bash
+docker compose up -d
+```
+
+Open `http://<server-ip>:6080` and sign in as `admin` with that password.
+Configure your site credentials, upload preferences in **Settings**, and choose an **Settings → Image host** in its own panel.
+Configuration and history stay in `workspace`. The password in `.env` initializes
+the login only; change an existing login in **Settings → Workspace access**.
+
+To update, from the same directory:
+
+```bash
+docker compose pull uploader
+docker compose up -d --no-deps uploader
+```
+
+`latest` follows stable releases. Keep your existing workspace mounts when updating.
+For CLI commands, use `docker compose run --rm uploader check` or
+`docker compose run --rm uploader upload /content/My.Release --cat CATEGORY_ID`.
+Use the appropriate category ID for your release.
 
 ## Which settings go where?
 
 | Location | Purpose |
 | --- | --- |
-| `.env` | Image, host media/state folders, UID/GID, listening IP/port and initial login |
+| `compose.yaml` | Image, media/workspace mounts, UID/GID and listening port |
+| `.env` | Initial workspace password |
 | Web Settings | DirtyBytes key/announce, screenshots/MTN, images, metadata, upload options |
 | Web Clients | qBittorrent connections and paths visible to those clients |
 | Web Workspace access | Active username/password and allowed IPs; stored in private SQLite |
-| `workspace/config/config.ini` | Same uploader settings as the browser and CLI; advanced/manual editing |
+| `workspace/config/config.ini` | Written by Settings and shared with the CLI |
 
 An existing login is preserved on restart. Editing the initial password in `.env`
 does not replace a login already saved in SQLite. Rerunning setup preserves it.
@@ -60,7 +108,7 @@ them or commit them. Back up the state directory privately.
 
 ## Storage and qBittorrent
 
-The uploader sees `MEDIA_DIR` at `/content`, read/write so it can create a release folder and link beside a selected single file. Existing media files stay in place. Your download client needs
+The uploader sees your media folder at `/content`, read/write so it can create a release folder and link beside a selected single file. Existing media files stay in place. Your download client needs
 write access to that same physical storage through its own mount. For example:
 
 | Component | Path |
@@ -75,7 +123,7 @@ Existing target folders generate an error. No extra import or hash folder is mad
 Use the built-in path check before publishing. A remote client requires shared
 storage; an API connection alone does not make its files readable on this server.
 
-All runtime files live below `STATE_DIR`: `config`, `data` (SQLite and exported
+All runtime files live below `workspace`: `config`, `data` (SQLite and exported
 source torrents), `tmp`, `logs`, `watch` and `mounts`. Keep these directories private.
 Completed torrents appear in `/watch`; alternatively use the configured client
 delivery. Manuals in the app explain qBittorrent's completed-download command.
@@ -88,12 +136,13 @@ uploaded normally. To mount RAR files without extracting them:
 
 1. Ensure the host supplies `/dev/fuse` and FUSE user mounts. Your provider may need
    to enable this. Some NAS configurations do not support mount propagation.
-2. An administrator must prepare `STATE_DIR/mounts` as a **shared host mount**.
+2. An administrator must prepare `workspace/mounts` as a **shared host mount**.
    For a dedicated application directory, the Linux commands are
    `mount --bind /srv/uploader/mounts /srv/uploader/mounts` then
    `mount --make-rshared /srv/uploader/mounts`. Replace the path with your chosen
    state directory. Configure persistence with your host's mount manager.
-3. Run `bash setup.sh --unrar`. This adds only the optional FUSE device,
+3. The optional `compose.unrar.yaml` override and `setup.sh --unrar` helper are
+   available in the repository for this advanced setup. They add the FUSE device,
    `SYS_ADMIN`, AppArmor allowance and shared propagation from `compose.unrar.yaml`.
    The script checks prerequisites; it never changes host mount propagation itself.
    It also creates synthetic container passwd/group files for your numeric UID/GID;
@@ -101,7 +150,7 @@ uploaded normally. To mount RAR files without extracting them:
 4. Enable **Settings → Archive handling (UNRAR / rar2fs)**. `/mounts` is the
    container's archive mount root; it is separate from `/content`.
 5. A qBittorrent container seeding the unpacked view must also mount the host's
-   `STATE_DIR/mounts`, e.g. at `/unpacked`, with `rslave` propagation. Configure
+   `workspace/mounts`, e.g. at `/unpacked`, with `rslave` propagation. Configure
    its save path to that unpacked release, or watch folder delivery accordingly.
    Keep the uploader/FUSE mounts running for as long as that data is being seeded.
 
@@ -113,19 +162,15 @@ path mapping above; the ordinary import-root mapping is not sufficient.
 ## Update, logs and CLI
 
 ```bash
-bash setup.sh --image ghcr.io/digicore404/dirtybytes-uploader:latest --no-start
 docker compose pull uploader
-docker compose up -d --no-deps --wait uploader
+docker compose up -d --no-deps uploader
 docker compose logs --tail 100 uploader
 docker compose run --rm uploader check
-docker compose run --rm uploader upload /content/My.Release --cat 9 --dry-run
 ```
 
-Set `IMAGE` in `.env` to a specific release tag for repeatable installs. Updates
-preserve mounted configuration and history. `latest` tracks stable releases;
-`edge` tracks main. Build locally with
-`docker build --target release -t dirtybytes-uploader:local .`, then select that
-image with `setup.sh --image dirtybytes-uploader:local --media /srv/media`.
+Updates preserve mounted configuration and history. `latest` tracks stable releases;
+`edge` tracks main. You can pin the image in `compose.yaml` to a specific version
+when you want to keep that release.
 
 Third-party tool licences are retained in `bin`. The image includes the rar2fs
 and UnRAR licences, corresponding source archives and build script under

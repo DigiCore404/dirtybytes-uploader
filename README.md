@@ -48,21 +48,72 @@ allows partial previews and logs the failed videos.
 
 ![Empty metadata search](docs/images/metadata-search.jpg)
 
-## Install with Docker
+## Install with Docker Compose
 
-Install [Docker Engine with Compose v2](https://docs.docker.com/engine/install/)
-on Linux x86_64.
+Requires Docker Compose v2 and an amd64 / x86_64 host. Create a directory for the
+uploader and its persistent files:
 
 ```bash
-git clone https://github.com/DigiCore404/dirtybytes-uploader.git
+mkdir -p dirtybytes-uploader/workspace/{config,data,tmp,logs,watch,mounts}
 cd dirtybytes-uploader
-bash setup.sh --media /srv/media --image ghcr.io/digicore404/dirtybytes-uploader:latest --bind 0.0.0.0
 ```
 
-Replace `/srv/media` with your existing media folder. Open `http://<server-ip>:6080`,
-log in as `admin` with the password printed by setup, then open **Settings**.
-Use `--bind 127.0.0.1` instead to restrict access to the server itself.
-When running setup as root, add your normal account's `--uid 1000 --gid 1000`.
+Save this as `compose.yaml`. Replace `/srv/media` with your media folder and
+`1000:1000` with your account's UID:GID (run `id` to find them). The workspace
+directories must be writable by that account.
+
+```yaml
+services:
+  uploader:
+    image: ghcr.io/digicore404/dirtybytes-uploader:latest
+    init: true
+    user: "1000:1000"
+    shm_size: 256m
+    restart: unless-stopped
+    ports:
+      - "6080:6080"
+    environment:
+      DIRTYBYTES_CONFIG: /config/config.ini
+      DIRTYBYTES_WEB_PASSWORD: ${WORKSPACE_PASSWORD:?Set WORKSPACE_PASSWORD in .env}
+    volumes:
+      - /srv/media:/content
+      - ./workspace/config:/config
+      - ./workspace/data:/app/data
+      - ./workspace/tmp:/app/tmp
+      - ./workspace/logs:/app/logs
+      - ./workspace/watch:/watch
+      - ./workspace/mounts:/mounts
+```
+
+Create `.env` beside `compose.yaml`, choosing your own password of at least 12
+characters. Use single quotes to keep special characters literal:
+
+```dotenv
+WORKSPACE_PASSWORD='replace-with-your-own-long-password'
+```
+
+Start the uploader:
+
+```bash
+docker compose up -d
+```
+
+Open `http://<server-ip>:6080` and sign in as `admin` with that password.
+Configure your site credentials, upload preferences in **Settings**, and choose an **Settings → Image host** in its own panel.
+Configuration and history stay in `workspace`. The password in `.env` initializes
+the login only; change an existing login in **Settings → Workspace access**.
+
+To update, from the same directory:
+
+```bash
+docker compose pull uploader
+docker compose up -d --no-deps uploader
+```
+
+`latest` follows stable releases. Keep your existing workspace mounts when updating.
+For CLI commands, use `docker compose run --rm uploader check` or
+`docker compose run --rm uploader upload /content/My.Release --cat CATEGORY_ID`.
+Use the appropriate category ID for your release.
 
 ## Install without Docker
 
@@ -134,15 +185,7 @@ New Docker installations follow `latest`; an existing pinned image must be
 changed to `latest` in its existing Compose project to follow stable releases.
 Older installations need one manual update to gain this notification feature.
 
-Choose **ImgBB** in Settings and enter your ImgBB API key in **Image host API key**.
+Choose **ImgBB** in **Settings → Image host** and enter your ImgBB API key in the API key field.
 This applies to browser images, folder images and screenshots from web or CLI.
-For CLI configuration:
-
-```ini
-[ImageHost]
-PROVIDER = imgbb
-API_KEY =
-```
-
-Fill API_KEY privately with your ImgBB key. To use the site's own image host,
-select it in Settings; no separate image-host key is needed.
+Save the selected host and its credentials in **Settings → Image host**.
+The same selection is used by web and CLI uploads; no INI editing is needed.

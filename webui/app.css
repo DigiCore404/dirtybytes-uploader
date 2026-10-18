@@ -131,3 +131,9 @@ body{font-size:1rem}.sidebar{width:280px;padding:36px 26px 24px}.main-shell{marg
 
 
 .config-field select{width:100%;min-height:36px;font-size:.8125rem}.folder-row.file-row{width:100%;text-align:left;cursor:pointer}.folder-row.file-row:hover{background:#203a50;color:#f0f6fc}
+
+.image-host-settings{grid-column:1/-1}.image-host-settings .form-body{max-width:900px}.image-host-settings .config-grid{padding:0;margin:18px 0}.workspace-version{color:var(--ink);font-size:.8125rem;font-weight:600;white-space:nowrap}.category-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}.category-chip{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font-size:.8125rem}.category-chip button{border:0;background:transparent;color:var(--ink);font-size:1.1rem;min-width:24px;padding:0 3px}.category-controls{display:flex;gap:8px;align-items:center}.category-controls select{min-width:0;flex:1}.category-controls button{white-space:nowrap}
+
+#page-settings>form+form{margin-top:24px}#image-host-form{display:block}#image-host-form .card{width:100%}
+
+.settings-column{display:flex;flex-direction:column;gap:24px;min-width:0}.settings-column>.card{margin:0;width:100%}
