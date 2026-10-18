@@ -1,5 +1,6 @@
 """Read-only ThePornDB metadata; token is sent only to the fixed API origin."""
 import re
+from urllib.parse import urlsplit
 import requests
 
 API = 'https://api.theporndb.net'
@@ -28,10 +29,24 @@ def normalize(row, kind):
         return ', '.join(str(v.get('name', '')) for v in (values or []) if isinstance(v, dict) and v.get('name'))[:1000]
     site = row.get('site') or {}
     date = str(row.get('date') or '')
-    image = row.get('poster')
-    if not isinstance(image, str):
-        image = (row.get('background') or {}).get('large') if isinstance(row.get('background'), dict) else ''
-    images = [image] if image and image.startswith('https://') and not any(c in image for c in '[]\r\n') else []
+    # TPDB's poster is a signed thumbnail/transformation URL. Prefer the
+    # supplied CDN image, preserving its path and query exactly as returned.
+    background = row.get('background')
+    candidates = ([background.get(size) for size in ('large', 'full', 'medium', 'small')]
+                  if isinstance(background, dict) else [background])
+    candidates.extend([row.get('image'), row.get('poster')])
+    images = []
+    for image in candidates:
+        if not isinstance(image, str) or any(c.isspace() or c in '[]' for c in image):
+            continue
+        try:
+            parsed = urlsplit(image)
+            valid = parsed.scheme == 'https' and parsed.hostname and not parsed.username and not parsed.password
+        except ValueError:
+            valid = False
+        if valid:
+            images = [image]
+            break
     return {'id': str(row.get('_id') or row.get('id') or ''), 'kind': kind,
             'title': str(row.get('title') or '')[:500], 'date': date[:10],
             'description': str(row.get('description') or '')[:30000], 'images': images,
