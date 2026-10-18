@@ -3,6 +3,44 @@
 Runs directly under your own Linux account. Use the browser interface or CLI directly. The browser interface and CLI use the same upload backend and config.ini.
 Based on the existing DirtyBytes/DC Uploader backend; attribution remains in the source.
 
+## Library: browse and upload
+
+Open **Library** to browse files and release folders on the uploader server.
+**Add folder** saves a shortcut to a folder inside the configured content library;
+it does not upload files from your PC. With Docker, mount additional media inside
+`/content` in your Compose configuration. Without Docker, configure your server's
+media root in **Settings → Folders & storage**. **Remove shortcut** only removes
+the shortcut and leaves the media in place.
+
+Each row shows the expected category from `filters.json`. Change the category
+selector if the result is wrong. Configure and test the rules in **Settings →
+Automatic categories · filters.json**: the first matching rule wins. Without a
+matching rule, choose a category for that item or fix the rules before uploading.
+Saved rules also apply to CLI uploads that use automatic category detection;
+an explicit CLI `--cat` overrides automatic selection.
+
+Right-click a release, or click its **…** button:
+
+- **Upload Direct** starts immediately with the detected or corrected category.
+  Metadata lookup, folder images, screenshots and contact sheets follow your
+  saved settings. There is no separate metadata or review prompt.
+- **Upload with metadata** opens a dialog to search for metadata or enter details,
+  including genres/tags, studio/cast, year, language, description and image URLs.
+  You can also correct the category. Entered details take precedence; blank fields
+  use automatic detection. Click **Upload with metadata** to start.
+- **Test category rules** checks the release name without uploading.
+- **Open folder**, **Copy path** and **Refresh** help you browse the library.
+
+Choose an individual release folder or file, not a parent containing unrelated
+releases. Single files use the configured hardlink/softlink mode; browsing does
+not create links. Follow progress and results in **Activity**. Seed the confirmed
+torrent using your configured watch folder or client workflow.
+
+For packs, **Settings → Screenshots & thumbnail sheets → Videos to capture →
+Automatic** captures every main video in pack categories and one video in other
+categories. **All videos** forces every main video; the screenshot count and
+optional MTN contact sheet apply separately to each video.
+
 ## 1. Extract and install
 
 Upload the package to a folder you own on the seedbox, then connect over SSH:
