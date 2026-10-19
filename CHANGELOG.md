@@ -1,5 +1,9 @@
 # DirtyBytes Uploader changelog
 
+## 2.5.1 · 2026-10-19
+
+- Restore consistent spacing between all Manuals panels on desktop and small screens.
+
 ## 2.5.0 · 2026-10-19
 
 - Add persistent upload drafts and a local screenshot, contact-sheet, MediaInfo and description preview without publishing or creating a torrent.

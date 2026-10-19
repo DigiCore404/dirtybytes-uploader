@@ -149,3 +149,6 @@ body{font-size:1rem}.sidebar{width:280px;padding:36px 26px 24px}.main-shell{marg
 @media(max-width:600px){.workspace-breadcrumb>.muted,.workspace-breadcrumb>.slash{display:none}.workspace-breadcrumb{gap:6px}.workspace-breadcrumb #workspace-back{padding:7px 9px}.topbar-right .workspace-version{font-size:11px}.dialog-footer{flex-wrap:wrap}}
 
 .draft-preview-dialog{width:min(1100px,96vw)}.draft-preview-images{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}.draft-preview-images figure{margin:0;min-width:0}.draft-preview-images img{max-width:100%;height:auto;border-radius:8px}.changelog-content{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.75;max-width:100%;max-height:none}.draft-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}.draft-actions{display:flex;gap:8px;flex-shrink:0}.card-footer{flex-wrap:wrap;gap:10px}@media(max-width:650px){.draft-row{align-items:flex-start;flex-direction:column}.draft-actions{flex-wrap:wrap}}
+
+/* Keep every Manuals section separate, including newly added panels. */
+#page-guide > .card + .card{margin-top:20px}
