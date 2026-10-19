@@ -22,6 +22,19 @@ def added_confirmed(response, hash_value):
     return False
 
 
+def tracker_host(value):
+    try:
+        parsed=urlparse(str(value or ''))
+        if parsed.scheme not in ('http','https','udp','ws','wss') or not parsed.hostname:return ''
+        return parsed.hostname.lower()+((':'+str(parsed.port)) if parsed.port else '')
+    except ValueError:return ''
+
+
+def peer_count(value):
+    try:return max(-1,int(value)) if value is not None else -1
+    except (TypeError,ValueError,OverflowError):return -1
+
+
 def state_group(state):
     if state in ('uploading', 'stalledUP', 'forcedUP'):
         return 'seeding'
@@ -39,6 +52,7 @@ def state_group(state):
 
 
 class QbitClients:
+    operation_lock=threading.RLock()
     def __init__(self, history):
         self.history = history
         self.sync_lock = threading.Lock()
@@ -62,9 +76,16 @@ class QbitClients:
                 );
                 CREATE INDEX IF NOT EXISTS idx_qbit_torrent_hash ON qbit_torrents(hash);
             ''')
+            if 'default_category' not in {r[1] for r in db.execute('PRAGMA table_info(qbit_clients)')}:
+                db.execute("ALTER TABLE qbit_clients ADD COLUMN default_category TEXT NOT NULL DEFAULT ''")
             columns = {row[1] for row in db.execute('PRAGMA table_info(qbit_torrents)')}
             if 'added_on' not in columns:
                 db.execute('ALTER TABLE qbit_torrents ADD COLUMN added_on INTEGER NOT NULL DEFAULT 0')
+            for column,kind in [('tracker',"TEXT NOT NULL DEFAULT ''"),('num_complete','INTEGER NOT NULL DEFAULT -1'),('num_incomplete','INTEGER NOT NULL DEFAULT -1'),('num_seeds','INTEGER NOT NULL DEFAULT -1'),('num_leechs','INTEGER NOT NULL DEFAULT -1')]:
+                if column not in columns:db.execute('ALTER TABLE qbit_torrents ADD COLUMN '+column+' '+kind)
+        from utils.client_cleanup import CleanupRules
+        self.cleanup=CleanupRules(self)
+
 
     def all(self, private=False):
         with self.history.connect() as db:
@@ -77,6 +98,7 @@ class QbitClients:
                 counts = dict(db.execute('SELECT status, COUNT(*) FROM qbit_torrents WHERE client_id=? GROUP BY status', (row['id'],)))
                 client['counts'] = counts
                 client['torrent_count'] = sum(counts.values())
+                client['cleanup']=self.cleanup.get(row['id']);client['cleanup_rules']=self.cleanup.list(row['id'])
                 client['online'] = bool(row['enabled'] and not row['error'] and row['last_sync'] and time.time() - row['last_sync'] < 90)
                 result.append(client)
         return result
@@ -94,11 +116,14 @@ class QbitClients:
                 raise ValueError('Re-enter the password when changing a client URL.')
             password = str(data.get('password') or (old['password'] if old else ''))
             username = str(data.get('username', '')).strip()
-            db.execute('''INSERT INTO qbit_clients(id,name,url,username,password,verify_ssl,enabled)
-                VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,url=excluded.url,
+            category=data.get('default_category',old['default_category'] if old else '')
+            if not isinstance(category,str) or len(category.strip())>100 or any(ord(c)<32 for c in category):raise ValueError('Enter a qBittorrent category up to 100 characters, without control characters.')
+            category=category.strip()
+            db.execute('''INSERT INTO qbit_clients(id,name,url,username,password,verify_ssl,enabled,default_category)
+                VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,url=excluded.url,
                 username=excluded.username,password=excluded.password,verify_ssl=excluded.verify_ssl,
-                enabled=excluded.enabled,error=NULL,last_sync=NULL''',
-                (identity, name, url, username, password, int(bool(data.get('verify_ssl', True))), int(bool(data.get('enabled', True)))))
+                enabled=excluded.enabled,default_category=excluded.default_category,error=NULL,last_sync=NULL''',
+                (identity, name, url, username, password, int(bool(data.get('verify_ssl', True))), int(bool(data.get('enabled', True))),category))
         return identity
 
     def remove(self, identity):
@@ -155,13 +180,14 @@ class QbitClients:
                     float(torrent.get('progress', 0)), float(torrent.get('ratio', 0)), int(torrent.get('uploaded', 0)),
                     int(torrent.get('upspeed', 0)), int(torrent.get('dlspeed', 0)), int(torrent.get('size', 0)),
                     int(torrent.get('seeding_time', 0)), str(torrent.get('save_path', '')), str(torrent.get('category', '')),
-                    max(0, int(torrent.get('added_on', 0) or 0))))
+                    max(0, int(torrent.get('added_on', 0) or 0)),tracker_host(torrent.get('tracker')),
+                    *[peer_count(torrent.get(key)) for key in ('num_complete','num_incomplete','num_seeds','num_leechs')]))
             with self.history.connect() as db:
                 current = db.execute('SELECT url,username,password,enabled FROM qbit_clients WHERE id=?', (identity,)).fetchone()
                 if not current or not current['enabled'] or any(current[key] != client[key] for key in ('url', 'username', 'password')):
                     return {'ok': False, 'error': 'The connection changed during refresh. Refresh again.'}
                 db.execute('DELETE FROM qbit_torrents WHERE client_id=?', (identity,))
-                db.executemany('INSERT INTO qbit_torrents (client_id,hash,name,state,status,progress,ratio,uploaded,upspeed,dlspeed,size,seeding_time,save_path,category,added_on) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
+                db.executemany('INSERT INTO qbit_torrents (client_id,hash,name,state,status,progress,ratio,uploaded,upspeed,dlspeed,size,seeding_time,save_path,category,added_on,tracker,num_complete,num_incomplete,num_seeds,num_leechs) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rows)
                 db.execute('UPDATE qbit_clients SET last_sync=?, error=NULL, version=? WHERE id=?', (time.time(), version, identity))
             return {'ok': True, 'version': version, 'torrents': len(rows)}
         except (requests.RequestException, ValueError, TypeError, KeyError) as exc:
@@ -192,13 +218,17 @@ class QbitClients:
         def loop():
             while not self.stop.is_set():
                 self.sync_all()
+                import uploader
+                try:
+                    with uploader.upload_lock():self.cleanup.run()
+                except uploader.UploadBusyError:pass
                 self.stop.wait(30)
         threading.Thread(target=loop, daemon=True).start()
 
-    def torrents(self, client_id='', query='', status='', offset=0, limit=50, sort='name', direction=''):
+    def torrents(self, client_id='', query='', status='', offset=0, limit=50, sort='name', direction='', tracker=''):
         offset, limit = max(0, int(offset)), max(1, min(100, int(limit)))
         columns = {'name': 't.name COLLATE NOCASE', 'client': 'c.name COLLATE NOCASE', 'status': 't.status COLLATE NOCASE',
-                   'size': 't.size', 'progress': 't.progress', 'upspeed': 't.upspeed', 'dlspeed': 't.dlspeed', 'ratio': 't.ratio', 'added_on': 't.added_on'}
+                   'size': 't.size', 'progress': 't.progress', 'upspeed': 't.upspeed', 'dlspeed': 't.dlspeed', 'ratio': 't.ratio', 'added_on': 't.added_on', 'tracker':'t.tracker COLLATE NOCASE','seeders':'t.num_complete','leechers':'t.num_incomplete','seeding_time':'t.seeding_time'}
         sort = sort if sort in columns else 'name'
         direction = direction if direction in ('asc', 'desc') else ('asc' if sort in ('name', 'client', 'status') else 'desc')
         order = columns[sort] + (' ASC' if direction == 'asc' else ' DESC')
@@ -209,8 +239,11 @@ class QbitClients:
             filters.append('t.name LIKE ?'); values.append('%' + query + '%')
         if status:
             filters.append('t.status=?'); values.append(status)
+        if tracker:
+            filters.append('t.tracker=?');values.append(str(tracker))
         where = ' WHERE ' + ' AND '.join(filters) if filters else ''
         with self.history.connect() as db:
+            trackers=[r[0] for r in db.execute("SELECT DISTINCT tracker FROM qbit_torrents WHERE tracker<>'' ORDER BY tracker COLLATE NOCASE")]
             count = db.execute('SELECT COUNT(*) FROM qbit_torrents t' + where, values).fetchone()[0]
             rows = db.execute('''SELECT t.*, c.name AS client_name, c.last_sync, c.error AS client_error,
                 c.enabled AS client_enabled FROM qbit_torrents t JOIN qbit_clients c ON t.client_id=c.id''' + where +
@@ -218,7 +251,7 @@ class QbitClients:
         torrents = [dict(row) for row in rows]
         for torrent in torrents:
             torrent['stale'] = bool(not torrent['client_enabled'] or torrent['client_error'] or not torrent['last_sync'] or time.time() - torrent['last_sync'] > 90)
-        return {'torrents': torrents, 'total': count}
+        return {'torrents': torrents, 'total': count, 'trackers':trackers}
 
     def matches(self, hash_value):
         if not hash_value:
@@ -231,24 +264,84 @@ class QbitClients:
             row['stale'] = bool(not row['client_enabled'] or row['client_error'] or not row['last_sync'] or time.time() - row['last_sync'] > 90)
         return result
 
-    def action(self, identity, hash_value, action):
-        if action not in ('pause', 'resume') or not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', hash_value):
-            raise ValueError('Choose one valid torrent and a pause/resume action.')
+    def live_torrents(self,client,hash_value=None,session=None):
+        if not client['enabled']:raise ValueError('This client is disabled.')
+        if session is None:
+            current,_=self._session(client)
+            with current:return self.live_torrents(client,hash_value,current)
+        response=session.get(client['url']+'/api/v2/torrents/info',params={'hashes':hash_value} if hash_value else {},timeout=15,allow_redirects=False)
+        if response.status_code!=200:raise ValueError('Could not refresh the torrent from qBittorrent.')
+        rows=response.json()
+        if not isinstance(rows,list) or any(not isinstance(row,dict) for row in rows):raise ValueError('Invalid torrent information.')
+        return [row for row in rows if not hash_value or str(row.get('hash','')).lower()==hash_value]
+
+    def details(self,identity,hash_value):
+        if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',hash_value):raise ValueError('Choose one valid torrent.')
+        client=self._client(identity);hash_value=hash_value.lower()
+        try:
+            session,_=self._session(client)
+            with session:
+                rows=self.live_torrents(client,hash_value,session)
+                if not rows:raise ValueError('Torrent not found on this client. Refresh the list.')
+                raw=rows[0]
+                keys=('hash','name','state','progress','ratio','uploaded','downloaded','upspeed','dlspeed','size','seeding_time','save_path','content_path','category','added_on','completion_on','eta','time_active','num_complete','num_incomplete','num_seeds','num_leechs')
+                torrent={k:raw.get(k) for k in keys};torrent['status']=state_group(str(raw.get('state','unknown')));torrent['tracker']=tracker_host(raw.get('tracker'))
+                response=session.get(client['url']+'/api/v2/torrents/trackers',params={'hash':hash_value},timeout=15,allow_redirects=False)
+                if response.status_code!=200:raise ValueError('Could not read this torrent’s trackers.')
+                trackers=response.json()
+                if not isinstance(trackers,list):raise ValueError('Invalid tracker information.')
+                safe=[]
+                for row in trackers:
+                    if not isinstance(row,dict):continue
+                    host=tracker_host(row.get('url'))
+                    pseudo={'** [DHT] **':'DHT','** [PeX] **':'PeX','** [LSD] **':'Local peer discovery'}.get(row.get('url'))
+                    if not host and not pseudo:continue
+                    safe.append({'host':host or pseudo,'status':peer_count(row.get('status')),'seeders':peer_count(row.get('num_seeds')),'leechers':peer_count(row.get('num_leeches'))})
+                return {'torrent':torrent,'trackers':safe,'client_name':client['name']}
+        except requests.RequestException as exc:raise ValueError('Could not read live torrent information. Check the client connection.') from exc
+
+    def action(self, identity, hash_value, action, delete_data=False, confirm_hash='', cleanup_policy=None):
+        with self.operation_lock:
+            return self._action(identity,hash_value,action,delete_data,confirm_hash,cleanup_policy)
+
+    def _action(self, identity, hash_value, action, delete_data=False, confirm_hash='', cleanup_policy=None):
+        allowed=('pause','resume','recheck','reannounce','force_start','delete')
+        if action not in allowed or not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', hash_value):
+            raise ValueError('Choose one valid torrent and a supported action.')
+        hash_value=hash_value.lower()
+        if type(delete_data) is not bool:raise ValueError('Choose whether to delete client data.')
+        if action=='delete' and confirm_hash!=hash_value:raise ValueError('Confirm this exact torrent before removing it.')
         client = self._client(identity)
-        if not client['enabled']:
-            raise ValueError('This client is disabled.')
+        if not client['enabled']:raise ValueError('This client is disabled.')
         with self.history.connect() as db:
-            if not db.execute('SELECT 1 FROM qbit_torrents WHERE client_id=? AND hash=?', (identity, hash_value.lower())).fetchone():
+            if not db.execute('SELECT 1 FROM qbit_torrents WHERE client_id=? AND hash=?', (identity, hash_value)).fetchone():
                 raise ValueError('Torrent not found on this client. Refresh the client first.')
         try:
             session, version = self._session(client)
             major = int(version.lstrip('v').split('.')[0])
-            method = ('stop' if action == 'pause' else 'start') if major >= 5 else action
+            method = (('stop' if action == 'pause' else 'start') if major >= 5 else action) if action in ('pause','resume') else 'setForceStart' if action=='force_start' else action
             with session:
-                response = session.post(client['url'] + '/api/v2/torrents/' + method, data={'hashes': hash_value.lower()}, timeout=10, allow_redirects=False)
-                response.raise_for_status()
+                rows=self.live_torrents(client,hash_value,session)
+                if not rows:raise ValueError('Torrent no longer exists on this client.')
+                if cleanup_policy:
+                    from utils.client_cleanup import eligible,shared_payload
+                    current=self.cleanup.get(identity,cleanup_policy.get('id'))
+                    if not current['enabled'] or current['updated']!=cleanup_policy['updated'] or not eligible(rows[0],current):raise ValueError('The auto-removal rule or torrent changed. Nothing was removed.')
+                    winner=self.cleanup.first_match(identity,rows[0])
+                    if not winner or winner['id']!=current['id']:raise ValueError('Another removal rule now takes priority. Nothing was removed.')
+                    if delete_data and shared_payload(rows[0],self.live_torrents(client,session=session)):raise ValueError('Automatic data removal skipped: shared or unknown content paths.')
+                if action=='delete':
+                    with self.history.connect() as db:
+                        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='confirmed_deliveries'").fetchone():
+                            db.execute("UPDATE confirmed_deliveries SET state='cancelled',error='Client removal requested; automatic delivery cancelled.',updated=? WHERE client_id=? AND lower(torrent_hash)=? AND state='pending'",(time.time(),identity,hash_value))
+                data={'hashes':hash_value}
+                if action=='delete':data['deleteFiles']='true' if delete_data else 'false'
+                if action=='force_start':data['value']='true'
+                response = session.post(client['url'] + '/api/v2/torrents/' + method, data=data, timeout=10, allow_redirects=False)
+                if response.status_code not in (200,204):raise ValueError('qBittorrent did not accept the action. Refresh the client to check its current state.')
+                if action=='delete' and self.live_torrents(client,hash_value,session):raise ValueError('qBittorrent has not confirmed removal. Refresh before trying again.')
         except requests.RequestException as exc:
-            raise ValueError('The client action failed. Refresh the client to check its current state.') from exc
+            raise ValueError('Could not confirm the client action. Refresh the client before trying again.') from exc
         return self.sync(identity)
 
     def export_torrent(self, identity, hash_value):
@@ -266,7 +359,7 @@ class QbitClients:
         if TorrentMetadata(bytes(raw)).infohash.lower()!=hash_value.lower():raise ValueError('Exported source torrent hash does not match the import.')
         return bytes(raw)
 
-    def add_torrent(self, identity, hash_value, save_path, raw=None, magnet=None, content_layout='Original'):
+    def add_torrent(self, identity, hash_value, save_path, raw=None, magnet=None, content_layout='Original', use_default_category=False):
         if content_layout not in ('Original', 'NoSubfolder'):
             raise ValueError('Unsupported torrent folder layout.')
         client = self._client(identity)
@@ -280,6 +373,17 @@ class QbitClients:
                 if existing.json():
                     raise ValueError('This torrent is already on the client. Use its existing folder in New upload.')
                 data = {'savepath': save_path, 'autoTMM': 'false', 'contentLayout': content_layout, 'paused': 'false', 'stopped': 'false'}
+                category=client['default_category'] if use_default_category else ''
+                if category:
+                    category_url=client['url']+'/api/v2/torrents/categories'
+                    categories=session.get(category_url,timeout=15,allow_redirects=False)
+                    if categories.status_code!=200 or not isinstance(categories.json(),dict):raise ValueError('Could not read qBittorrent categories. Nothing was added.')
+                    if category not in categories.json():
+                        created=session.post(client['url']+'/api/v2/torrents/createCategory',data={'category':category,'savePath':''},timeout=15,allow_redirects=False)
+                        if created.status_code!=200:raise ValueError('qBittorrent could not create the configured category. Nothing was added.')
+                        categories=session.get(category_url,timeout=15,allow_redirects=False)
+                        if categories.status_code!=200 or category not in categories.json():raise ValueError('qBittorrent did not confirm the category. Nothing was added.')
+                    data['category']=category
                 if magnet:
                     data['urls'] = magnet
                 response = session.post(client['url'] + '/api/v2/torrents/add', data=data,

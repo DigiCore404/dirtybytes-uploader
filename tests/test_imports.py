@@ -203,7 +203,7 @@ class ImportTests(unittest.TestCase):
         self.status.return_value=(None,[]);self.add.reset_mock()
         with patch.object(self.workspace.clients,'sync'):
             self.queue.tick();self.queue.tick()
-        self.add.assert_called_once_with(self.client,torrent.infohash,str(__import__('pathlib').PurePosixPath(row['remote_path']).parent),raw=raw)
+        self.add.assert_called_once_with(self.client,torrent.infohash,str(__import__('pathlib').PurePosixPath(row['remote_path']).parent),raw=raw,use_default_category=True)
         self.assertEqual(self.queue.rows()[0]['seed_status'],'added')
 
 class MetadataTests(unittest.TestCase):

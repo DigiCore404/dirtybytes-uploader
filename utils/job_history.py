@@ -110,7 +110,7 @@ class JobHistory:
             db.execute('''INSERT INTO upload_jobs
                 (id, name, source, category, status, stage, started, description, metadata_json, images_json)
                 VALUES (?, ?, ?, ?, 'running', 'starting', ?, ?, ?, ?)''',
-                (identity, job.get('release_name') or (Path(job['source']).stem if Path(job['source']).is_file() else Path(job['source']).name), job['source'], job['category'], now,
+                (identity, job.get('post_title') or job.get('release_name') or (Path(job['source']).stem if Path(job['source']).is_file() else Path(job['source']).name), job['source'], job['category'], now,
                  job.get('description', ''), json.dumps(job.get('metadata', {}), ensure_ascii=False),
                  json.dumps(job.get('images', []), ensure_ascii=False)))
             self._event(db, identity, 'running', 'starting', {})

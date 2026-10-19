@@ -272,7 +272,7 @@ class Workspace:
         if path == Path(config.get('Paths', 'DATADIR')).resolve():
             raise ValueError('Choose a release subfolder, not the entire content library.')
         job = uploader.validate_job(path, data.get('category'), str(data.get('description', '')),
-                                    data.get('images', []), data.get('metadata', {}), config, source_torrent=source_torrent, prepare_files=False)
+                                    data.get('images', []), data.get('metadata', {}), config, source_torrent=source_torrent, prepare_files=False,post_title=data.get('post_title',''))
         # Inspect symlink targets too: the web UI cannot upload arbitrary host paths.
         root = Path(config.get('Paths', 'DATADIR')).resolve()
         for directory, dirs, files in os.walk(path, followlinks=False):
@@ -415,10 +415,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == '/health':
             return self.send({'ok': True})
-        if path in ('/', '/app.css', '/app.js', '/library.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/updates.js', '/updates.css', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
+        if path in ('/', '/client-controls.js', '/app.css', '/app.js', '/library.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/updates.js', '/updates.css', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
             name, mime = {'/': ('index.html', 'text/html'), '/app.css': ('app.css', 'text/css'),
                           '/app.js': ('app.js', 'text/javascript'),
                           '/library.js': ('library.js', 'text/javascript'),
+                          '/client-controls.js': ('client-controls.js', 'text/javascript'),
                           '/config-settings.js': ('config-settings.js', 'text/javascript'),
                           '/updates.js': ('updates.js', 'text/javascript'),
                           '/updates.css': ('updates.css', 'text/css'),
@@ -487,10 +488,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(result)
             if path == '/api/clients':
                 return self.send({'clients': workspace.clients.all()})
+            if path == '/api/clients/torrent':
+                query=parse_qs(urlparse(self.path).query)
+                return self.send(workspace.clients.details(query.get('id',[''])[0],query.get('hash',[''])[0]))
+            if path == '/api/clients/cleanup-rules':return self.send({'rules':workspace.clients.cleanup.list()})
+            if path == '/api/clients/cleanup-events':return self.send({'events':workspace.clients.cleanup.events()})
             if path == '/api/client-torrents':
                 query = parse_qs(urlparse(self.path).query)
                 return self.send(workspace.clients.torrents(query.get('client', [''])[0], query.get('search', [''])[0],
-                    query.get('status', [''])[0], query.get('offset', [0])[0], sort=query.get('sort', ['name'])[0], direction=query.get('direction', [''])[0]))
+                    query.get('status', [''])[0], query.get('offset', [0])[0], sort=query.get('sort', ['name'])[0], direction=query.get('direction', [''])[0], tracker=query.get('tracker', [''])[0]))
             if path.startswith('/api/jobs/'):
                 with workspace.lock:
                     job = workspace.history.get(path.rsplit('/', 1)[1])
@@ -571,7 +577,7 @@ class Handler(BaseHTTPRequestHandler):
                     if source.is_file():
                         from utils.single_files import prepare
                         source = Path(prepare(str(source), config, create=False)['source'])
-                    draft = workspace.review({'source': str(source), 'category': category, 'description': data.get('description', ''), 'metadata': data.get('metadata', {}), 'images': data.get('images', [])})
+                    draft = workspace.review({'source': str(source), 'category': category, 'description': data.get('description', ''), 'post_title':data.get('post_title',''), 'metadata': data.get('metadata', {}), 'images': data.get('images', [])})
                     return self.send(workspace.upload(draft['review_id']), 202)
             if path == '/api/category-filters/test':
                 name = str(data.get('name', '')).strip()
@@ -660,8 +666,11 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/clients/remove':
                 workspace.clients.remove(str(data.get('id', '')))
                 return self.send({'ok': True})
+            if path == '/api/clients/cleanup-preview':return self.send(workspace.clients.cleanup.preview(str(data.get('id','')),data))
+            if path == '/api/clients/cleanup-rule-remove':return self.send(workspace.clients.cleanup.remove(str(data.get('id','')),str(data.get('rule_id',''))))
+            if path == '/api/clients/cleanup-policy':return self.send(workspace.clients.cleanup.save(str(data.get('id','')),data))
             if path == '/api/clients/action':
-                return self.send(workspace.clients.action(str(data.get('id', '')), str(data.get('hash', '')), str(data.get('action', ''))))
+                return self.send(workspace.clients.action(str(data.get('id', '')), str(data.get('hash', '')), str(data.get('action', '')),delete_data=data.get('delete_data',False),confirm_hash=str(data.get('confirm_hash',''))))
             if path == '/api/review':
                 return self.send(workspace.review(data))
             if path == '/api/sources/prepare-file':

@@ -1,5 +1,21 @@
 # DirtyBytes Uploader changelog
 
+## Unreleased · 2026-10-19
+
+- Add visible coloured Rules buttons, a removal-rule overview and + New Rule. Support multiple named rules per client, preserve existing rules and apply only the first matching enabled rule.
+- Add a per-client qBittorrent category for confirmed uploads delivered through the API, including web, CLI and Import. Source downloads, existing torrents and watch-folder delivery keep their current category handling.
+- Put the editable site torrent title above category selection and keep each Manuals panel separate, including client controls.
+- Render the Changelog page and update instructions with version headings and readable bullet lists.
+- Fit Clients columns to the full available width, preserving user proportions and adapting when the window changes.
+- Use smaller monospace text and horizontal scrolling in the filters.json editor to keep long category rules readable.
+- Group the torrent information modal into readable sections, use full-width paths and hashes, and align tracker hosts, status badges and peer counts.
+- Add a tracker-host filter to Clients, combined with client, state and search filters across the full paginated list. Private announce paths and passkeys are not shown.
+- Add resizable Clients torrent columns, remembered per browser across refreshes and sorting, with per-column and full-width reset controls.
+- Add per-torrent actions in Clients and the torrent information dialog, tracker hostnames, seed time and connected/swarm peer counts.
+- Add optional completed-torrent removal rules per client, with a read-only preview, explicit data handling and removal history. Rules are disabled by default; shared or unknown content paths are skipped for automatic data removal.
+- Allow a separate site post title in uploads, Library, Import, drafts and CLI (--title), preserving the torrent payload and seeding paths.
+- Convert fetched metadata descriptions from HTML to readable text with paragraph breaks, and separate the metadata source link from the comparison button.
+
 ## 2.5.1 · 2026-10-19
 
 - Restore consistent spacing between all Manuals panels on desktop and small screens.

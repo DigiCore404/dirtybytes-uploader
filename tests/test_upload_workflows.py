@@ -63,8 +63,8 @@ class WorkflowTests(unittest.TestCase):
  def test_persistent_draft_preview_never_calls_site_or_creates_media_folders(self):
   store=DraftStore(SimpleNamespace(history=self.history))
   with patch.object(uploader,'load_config',return_value=self.config),patch('requests.sessions.Session.request',side_effect=AssertionError('Preview must not publish')):
-   draft=store.save({'source':str(self.file),'description':'A saved draft'})
-   self.assertEqual(draft['payload']['release_name'],'Film.2026');self.assertIsNone(draft['payload']['category'])
+   draft=store.save({'source':str(self.file),'post_title':'Edited site title','description':'A saved draft'})
+   self.assertEqual(draft['payload']['post_title'],'Edited site title');self.assertEqual(draft['payload']['release_name'],'Film.2026');self.assertIsNone(draft['payload']['category'])
    with self.assertRaises(ValueError):store.preview(draft['id'])
    draft=store.save(dict(draft['payload'],draft_id=draft['id'],category=self.category))
    store.preview(draft['id']);store.preview_thread.join(15)
@@ -112,7 +112,7 @@ class WorkflowTests(unittest.TestCase):
   clients=Mock();clients.import_status.side_effect=[RuntimeError('offline'),(None,[])]
   queue=DeliveryQueue(self.history,clients);events={'watch_torrent':str(path),'torrent_hash':metadata.infohash}
   result=queue.enqueue({'source':str(self.file)},self.config,events);self.assertEqual(result['state'],'pending');clients.add_torrent.assert_not_called()
-  queue.tick();clients.add_torrent.assert_called_once_with('chosen',metadata.infohash,'/downloads',raw=metadata.raw)
+  queue.tick();clients.add_torrent.assert_called_once_with('chosen',metadata.infohash,'/downloads',raw=metadata.raw,use_default_category=True)
   with self.history.connect() as db:self.assertEqual(db.execute('SELECT state FROM confirmed_deliveries').fetchone()[0],'added')
   clients.add_torrent.reset_mock();queue.tick();clients.add_torrent.assert_not_called()
   events['torrent_hash']='0'*40

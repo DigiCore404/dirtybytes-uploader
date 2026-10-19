@@ -33,6 +33,10 @@ class DeliveryQueue:
         with self.history.connect() as db:return dict(db.execute('SELECT state,error FROM confirmed_deliveries WHERE id=?',(identity,)).fetchone())
 
     def attempt(self,identity):
+        with QbitClients.operation_lock:
+            return self._attempt(identity)
+
+    def _attempt(self,identity):
         if not self.lock.acquire(blocking=False):return
         try:
             with self.history.connect() as db:row=db.execute("SELECT * FROM confirmed_deliveries WHERE id=? AND state='pending'",(identity,)).fetchone()
@@ -42,7 +46,7 @@ class DeliveryQueue:
                 metadata=TorrentMetadata.read(row['torrent_path'])
                 if metadata.infohash.lower()!=row['torrent_hash'].lower() or not metadata.verify_filesize(row['source'],allowed_root=row['allowed_root']):raise ValueError('Payload changed.')
                 existing,_=self.clients.import_status(row['client_id'],row['torrent_hash'])
-                if not existing:self.clients.add_torrent(row['client_id'],row['torrent_hash'],row['save_path'],raw=metadata.raw)
+                if not existing:self.clients.add_torrent(row['client_id'],row['torrent_hash'],row['save_path'],raw=metadata.raw,use_default_category=True)
                 state='added'
             except Exception:
                 error='Upload accepted and watch torrent retained. qBittorrent delivery is pending; check the client connection and folder mapping. Delivery retries automatically without uploading again.'

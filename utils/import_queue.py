@@ -127,7 +127,7 @@ class ImportQueue:
             raise ValueError('Choose the existing release folder or file, not the entire content library.')
         validate(Torrent.read_stream(io.BytesIO(raw)), source, allowed_root=root)
         details = {key: data.get(key, default) for key, default in
-                   [('category', None), ('description', ''), ('images', []), ('metadata', {})]}
+                   [('post_title',''),('category', None), ('description', ''), ('images', []), ('metadata', {})]}
         if not isinstance(details['metadata'], dict) or not isinstance(details['images'], list):
             raise ValueError('Invalid release details.')
         if len(str(details['description'])) > 30000 or len(details['images']) > 100:
@@ -184,7 +184,7 @@ class ImportQueue:
             remote_path = str(PurePosixPath(remote) / relative)
             local_path = str(local.joinpath(*relative.parts))
             details = {key: data.get(key, default) for key, default in
-                       [('category', None), ('description', ''), ('images', []), ('metadata', {})]}
+                       [('post_title',''),('category', None), ('description', ''), ('images', []), ('metadata', {})]}
             if not isinstance(details['metadata'], dict) or not isinstance(details['images'], list):
                 raise ValueError('Invalid release details.')
             if len(str(details['description'])) > 30000 or len(details['images']) > 100:
@@ -338,7 +338,7 @@ class ImportQueue:
                     relative = Path(job['source']).relative_to(Path(row['local_path']))
                     remote_source = PurePosixPath(row['remote_path']).joinpath(*relative.parts)
                     # New torrents contain the release root, so seed from its parent.
-                    self.workspace.clients.add_torrent(row['client_id'], job['torrent_hash'], str(remote_source.parent), raw=raw)
+                    self.workspace.clients.add_torrent(row['client_id'], job['torrent_hash'], str(remote_source.parent), raw=raw, use_default_category=True)
                 self.update(row['id'], seed_status='added', error=None)
                 self.workspace.clients.sync(row['client_id'])
             except (OSError, ValueError, KeyError, requests.RequestException):

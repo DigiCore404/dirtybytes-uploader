@@ -96,6 +96,8 @@ def main():
 
     """Main function to run the script."""
     job = json.loads(Path(args.job).read_text(encoding='utf-8')) if args.job else {}
+    from utils.publication_title import post_title as validate_post_title
+    job['post_title']=validate_post_title(job.get('post_title',''))
 
     # Load configuration
     config = ConfigLoader().get_config()
@@ -416,7 +418,7 @@ def main():
             log(f"Error processing .nfo file: {str(e)}", log_file_path)
 
         print(f"{bcolors.GREEN}Add directory name to template\n{bcolors.ENDC}")
-        replacements['!releasename!'] = directory_name
+        replacements['!releasename!'] = job.get('post_title') or directory_name
 
        # Prepare and save the final template with all content
         try:
@@ -491,6 +493,7 @@ def main():
                 mediainfo_content,
                 dupedl_enabled,
                 metadata=release_metadata,
+                post_title=job.get('post_title',''),
             )
             if rar_source:
                 register_unrar_mount(original_release_name, directory, upload_result,

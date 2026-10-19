@@ -297,6 +297,18 @@ function extractFrom(doc, baseUrl, site) {
 
 
 const parse = (html) => new DOMParser().parseFromString(html,'text/html');
+function plainDescription(value){
+ let text=String(value||'').slice(0,100000);
+ for(let pass=0;pass<2;pass++){
+  const doc=parse(text);doc.querySelectorAll('script,style,iframe,noscript,template,svg').forEach(node=>node.remove());
+  doc.querySelectorAll('br').forEach(node=>node.replaceWith(doc.createTextNode('\n')));
+  doc.querySelectorAll('p,div,section,article,h1,h2,h3,h4,h5,h6,blockquote,ul,ol,li,tr,pre').forEach(node=>{node.prepend(doc.createTextNode('\n\n'));node.append(doc.createTextNode('\n\n'));});
+  text=doc.body.textContent;
+  if(!/<\/?[a-z][^>]*>/i.test(text))break;
+ }
+ return text.replace(/\u00a0/g,' ').replace(/[ \t\r\f\v]+/g,' ').split('\n').map(line=>line.trim()).join('\n').replace(/\n{3,}/g,'\n\n').trim().slice(0,30000);
+}
+
 const sameHost = (url,site) => new URL(url).hostname.replace(/^www\./,'')===site.host.replace(/^www\./,'');
 const normalize = (doc,url,site,query='') => {
  const fields=extractFrom(doc,url,site),title=pageTitle(doc);
@@ -304,7 +316,7 @@ const normalize = (doc,url,site,query='') => {
  if(jeedooId)fields.covers=(fields.covers||[]).filter(image=>new RegExp('(^|[^0-9])'+jeedooId+'([^0-9]|$)').test(new URL(image,url).pathname));
  const description=fields.description||doc.querySelector('meta[name="description"],meta[property="og:description"]')?.content||'';
  return {source:'catalogue',site:site.name,url,title,score:query?Math.round(similarity(query,title)*100):100,
- description:parse(String(description)).body.textContent.slice(0,30000),images:(fields.covers||[]).filter(u=>!/[\[\]\r\n]/.test(u)).slice(0,8),
+ description:plainDescription(description),images:(fields.covers||[]).filter(u=>!/[\[\]\r\n]/.test(u)).slice(0,8),
  metadata:{studio:fields.studio||'',performers:fields.performers||'',release_year:fields.release_year||'',runtime_minutes:fields.runtime_minutes||'',content_tags:(fields.genres||'').split(',').map(clean).filter(genreAllowed).join(', ')}};
 };
 async function page(url,fetcher){const result=await fetcher(url);return {doc:parse(result.html),url:result.url};}
@@ -350,5 +362,5 @@ async function search(query,provider,fetcher,progress){
  for(const site of selected){progress('Searching '+site.name+'…');try{results.push(...await scan(site,query,fetcher));}catch(error){errors.push(site.name+': '+error.message);}}
  results.sort((a,b)=>b.score-a.score);return {results:results.slice(0,12),errors};
 }
-window.CatalogMetadata={sites:SITES,search,fromURL,similarity,extract:extractFrom,normalize,sameRelease,combine,sourceLabel};
+window.CatalogMetadata={plainDescription,sites:SITES,search,fromURL,similarity,extract:extractFrom,normalize,sameRelease,combine,sourceLabel};
 })();

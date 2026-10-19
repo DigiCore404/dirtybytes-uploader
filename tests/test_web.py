@@ -17,6 +17,23 @@ import web
 
 
 class WebTests(unittest.TestCase):
+
+    def test_removal_rule_management_requires_session_and_csrf(self):
+        self.assertEqual(self.client.get(self.base+'/api/clients/cleanup-rules').status_code,401)
+        self.assertEqual(self.post('/api/clients/cleanup-policy',{}).status_code,401)
+        self.assertEqual(self.post('/api/clients/cleanup-rule-remove',{}).status_code,401)
+        self.login()
+        identity=self.server.workspace.clients.save({'name':'Test only','url':'http://127.0.0.1:1'})
+        payload={'id':identity,'new_rule':True,'name':'Tracker rule','enabled':False,'seed_hours':12,'tracker':'tracker.example'}
+        token=self.csrf;self.csrf='invalid'
+        self.assertEqual(self.post('/api/clients/cleanup-policy',payload).status_code,403);self.csrf=token
+        response=self.post('/api/clients/cleanup-policy',payload);self.assertEqual(response.status_code,200,response.text);rule=response.json()
+        self.assertFalse(rule['enabled']);self.assertEqual(rule['tracker'],'tracker.example')
+        self.assertEqual(self.client.get(self.base+'/api/clients/cleanup-rules').json()['rules'][0]['id'],rule['id'])
+        self.assertEqual(self.post('/api/clients/cleanup-rule-remove',{'id':identity,'rule_id':rule['id']}).status_code,200)
+        self.assertEqual(self.client.get(self.base+'/api/clients/cleanup-rules').json()['rules'],[])
+        self.assertEqual(self.server.workspace.clients._client(identity)['name'],'Test only')
+
     def test_persistent_drafts_and_changelog_require_authentication_and_csrf(self):
         payload={'source':str(self.release),'category':3,'description':'Saved without publishing'}
         self.assertEqual(self.post('/api/drafts/save',payload).status_code,401)

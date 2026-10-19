@@ -41,7 +41,8 @@ class DraftStore:
             if parsed.scheme not in ('http','https') or not parsed.hostname or any(c in str(url) for c in '[]\r\n'):raise ValueError('Use complete HTTP(S) image URLs.')
         metadata={k:str(v).strip() for k,v in metadata.items() if k in uploader.META_FIELDS and str(v).strip()}
         if any(len(v)>8000 for v in metadata.values()):raise ValueError('Metadata is too long.')
-        payload=dict(source=str(source),release_name=source.stem if source.is_file() else source.name,category=category,
+        from utils.publication_title import post_title
+        payload=dict(post_title=post_title(data.get('post_title','')),source=str(source),release_name=source.stem if source.is_file() else source.name,category=category,
                      description=str(data.get('description') or '').strip(),images=images,metadata=metadata)
         encoded=json.dumps(payload,ensure_ascii=False);identity=str(data.get('draft_id') or uuid.uuid4().hex)
         if not re.fullmatch('[a-f0-9]{32}',identity):raise ValueError('Invalid draft ID.')
@@ -74,7 +75,7 @@ class DraftStore:
             with self.history.connect() as db:
                 if db.execute("SELECT 1 FROM upload_drafts WHERE state='previewing' AND deleted=0").fetchone():raise ValueError('A preview is already running. Wait for it to finish.')
             config=copy.deepcopy(uploader.load_config());payload=row['payload']
-            job=uploader.validate_job(payload['source'],payload['category'],payload['description'],payload['images'],payload['metadata'],config,prepare_files=False)
+            job=uploader.validate_job(payload['source'],payload['category'],payload['description'],payload['images'],payload['metadata'],config,prepare_files=False,post_title=payload.get('post_title',''))
             # Previews read media and write only to private scratch space. No site/image-host calls.
             work=self.images/identity/row['revision'];work.mkdir(parents=True,exist_ok=True)
             config.set('Paths','TMP_DIR',str(work))
@@ -99,7 +100,7 @@ class DraftStore:
                 if config.getboolean('Settings','MEDIAINFO') and category in categories:
                     file=generate_mediainfo(source,scratch)
                     if file:mediainfo=file.read_text(encoding='utf-8')
-                replacements={'!version!':__import__('utils.app_version',fromlist=['VERSION']).VERSION,'!releasename!':job['release_name'],'!description!':job['description'],'!nfo!':'','!imageupload!':'\n'.join('[c][img]'+str(url)+'[/img][/c]' for url in job['images']),'!screenshots!':'\n'.join('[c][img]'+p['url']+'[/img][/c]' for p in images)}
+                replacements={'!version!':__import__('utils.app_version',fromlist=['VERSION']).VERSION,'!releasename!':job.get('post_title') or job['release_name'],'!description!':job['description'],'!nfo!':'','!imageupload!':'\n'.join('[c][img]'+str(url)+'[/img][/c]' for url in job['images']),'!screenshots!':'\n'.join('[c][img]'+p['url']+'[/img][/c]' for p in images)}
                 if config.getboolean('Settings','INCLUDE_NFO',fallback=True):process_nfo(source,replacements,scratch/'preview.log')
                 target=scratch/'description.txt';prepare_template(config.get('Paths','TEMPLATE_PATH'),target,replacements)
                 result={'job':job,'images':images,'image_folder':str(image_folder),'description':target.read_text(encoding='utf-8'),'mediainfo':mediainfo,'screenshot_note':reason,'note':'Local preview only. Nothing was published, hashed or uploaded to an image host. Screenshots are generated again when you publish.'}

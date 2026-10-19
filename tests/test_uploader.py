@@ -160,6 +160,7 @@ TorrentDownloadRetryDelay = 0
                     value = part.get_payload(decode=True)
                     if name == 'file':
                         state['torrent'] = value
+                        state['filename'] = part.get_filename()
                     else:
                         fields[name] = value.decode('utf-8')
                 state['posts'].append(fields)
@@ -199,14 +200,16 @@ TorrentDownloadRetryDelay = 0
         with self.cfg.open('a') as stream:
             stream.write('\n[UnrarUpload]\nENABLED = true\nMODE = unpacked_only\n')
         self.config=uploader.load_config()
-        job=uploader.validate_job(self.release,25,config=self.config,source_torrent=original)
+        job=uploader.validate_job(self.release,25,config=self.config,source_torrent=original,post_title='Custom site title (2026)')
         output=[];events=[]
         def emit(line):output.append(line)
         emit.event=events.append
         result=uploader.run_job(job,self.config,emit)
         self.assertEqual(result,0,'\n'.join(output))
         self.assertEqual(len(state['posts']),1)
+        self.assertEqual(state['filename'],'Custom site title (2026).torrent')
         after=TorrentMetadata(state['torrent'])
+        self.assertEqual(after.name,before.name)
         self.assertEqual(after.metainfo['info']['pieces'],before.metainfo['info']['pieces'])
         self.assertEqual(after.file_sizes,before.file_sizes)
         self.assertTrue(any(e.get('hash_mode')=='editing' for e in events))

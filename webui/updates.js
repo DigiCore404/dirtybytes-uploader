@@ -1,3 +1,19 @@
+/* Render the supported changelog Markdown with DOM text nodes only. */
+window.renderUploaderChangelog=function(target,text){
+ target.replaceChildren();let list=null,paragraph=[],code=null;
+ const inline=(node,value)=>{for(const part of String(value).split(/(`[^`]+`|\*\*[^*]+\*\*)/g)){if(part.startsWith('`')&&part.endsWith('`')){const el=document.createElement('code');el.textContent=part.slice(1,-1);node.append(el);}else if(part.startsWith('**')&&part.endsWith('**')){const el=document.createElement('strong');el.textContent=part.slice(2,-2);node.append(el);}else node.append(document.createTextNode(part));}};
+ const flush=()=>{if(paragraph.length){const node=document.createElement('p');inline(node,paragraph.join(' '));target.append(node);paragraph=[];}};
+ for(const line of String(text||'').replace(/\r\n/g,'\n').split('\n')){
+  if(line.startsWith('```')){flush();list=null;if(code){target.append(code);code=null;}else code=document.createElement('pre');continue;}
+  if(code){code.textContent+=line+'\n';continue;}
+  const heading=line.match(/^(#{1,6})\s+(.+)$/),bullet=line.match(/^\s*[-*]\s+(.+)$/);
+  if(heading){flush();list=null;const node=document.createElement('h'+Math.min(4,heading[1].length+1));inline(node,heading[2]);target.append(node);}
+  else if(bullet){flush();if(!list){list=document.createElement('ul');target.append(list);}const item=document.createElement('li');inline(item,bullet[1]);list.append(item);}
+  else if(!line.trim())flush();
+  else{list=null;paragraph.push(line.trim());}
+ }
+ flush();if(code)target.append(code);
+};
 /* Public release notices; no installation commands run in the browser. */
 (() => {
  const node = id => document.getElementById(id);
@@ -40,12 +56,12 @@
   if(!release){refresh();return;}
   node('update-dialog-title').textContent=release.available?'Update to version '+release.latest_version:'Update instructions';
   node('update-versions').textContent='Installed: '+release.current_version+(release.latest_version?' · Latest release: '+release.latest_version:'');
-  node('update-notes').textContent=release.notes||'Open the release page for changes and available downloads.';
+  window.renderUploaderChangelog(node('update-notes'),release.notes||'Open the release page for changes and available downloads.');
   node('update-release-link').href=release.release_url;
   node('update-method').value=release.installation==='docker'?'docker':release.source_type==='git'?'git':'package';
   method();node('update-dialog').showModal();
   node('update-changelog').textContent='Loading full changelog…';
-  api('/api/changelog?latest=1').then(result=>{node('update-changelog').textContent=(result.notice?result.notice+'\n\n':'')+(result.text||'No changelog was included in this installation.');}).catch(()=>{node('update-changelog').textContent='Could not load the changelog. Open Changelog in the menu or view the GitHub release.';});
+  api('/api/changelog?latest=1').then(result=>{window.renderUploaderChangelog(node('update-changelog'),(result.notice?result.notice+'\n\n':'')+(result.text||'No changelog was included in this installation.'));}).catch(()=>{node('update-changelog').textContent='Could not load the changelog. Open Changelog in the menu or view the GitHub release.';});
  }
  node('update-check').addEventListener('click',()=>{checks=0;refresh(true);});
  node('update-open').addEventListener('click',open);
