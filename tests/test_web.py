@@ -329,6 +329,24 @@ MEDIAINFO = false
             self.assertEqual(response.status_code,200,response.text)
             self.assertEqual(validate.call_args[0][1].get('Paths','DATADIR'),'/content')
 
+    def test_existing_data_import_http_requires_auth_and_csrf_and_validates_payload(self):
+        import base64
+        from torrent_fixtures import Torrent
+        torrent=Torrent(self.release);torrent.generate()
+        payload={'existing_data':True,'existing_path':str(self.release),'torrent':base64.b64encode(torrent.dump()).decode(),'category':3}
+        self.assertEqual(self.post('/api/imports/add',payload).status_code,401)
+        self.login()
+        token=self.csrf;self.csrf='wrong'
+        self.assertEqual(self.post('/api/imports/add',payload).status_code,403)
+        self.csrf=token
+        (self.release/'video.mp4').write_bytes(b'mismatch')
+        with patch.object(self.server.workspace.clients,'add_torrent') as download,patch.object(uploader,'run_job') as worker:
+            response=self.post('/api/imports/add',payload)
+            self.assertEqual(response.status_code,400,response.text)
+            self.assertIn('no rehash',response.json()['error'])
+            download.assert_not_called();worker.assert_not_called()
+        self.assertEqual(self.server.workspace.imports.rows(),[])
+
     def test_import_endpoints_require_auth_and_csrf(self):
         self.assertEqual(self.client.get(self.base + '/api/imports').status_code, 401)
         self.login()

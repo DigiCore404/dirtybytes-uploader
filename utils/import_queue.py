@@ -33,12 +33,12 @@ def parse_source(data):
         return value.lower(), (query.get('dn') or ['Imported release'])[0][:200], None, magnet
     try:
         raw = base64.b64decode(encoded, validate=True)
-        if not 0 < len(raw) <= 4 * 1024 * 1024:
+        if not 0 < len(raw) <= 64 * 1024 * 1024:
             raise ValueError()
         torrent = Torrent.read_stream(io.BytesIO(raw))
         return torrent.infohash.lower(), str(torrent.name)[:200], raw, None
     except Exception as exc:
-        raise ValueError('Choose a valid v1/hybrid .torrent file, up to 4 MB.') from exc
+        raise ValueError('Choose a valid v1/hybrid .torrent file, up to 64 MB.') from exc
 
 
 class ImportQueue:
@@ -114,6 +114,48 @@ class ImportQueue:
             if __import__('os').name!='nt':target.chmod(0o600)
         return target
 
+    def _add_existing(self, data, config):
+        """Publish existing local data; never contact a download client."""
+        from web import content_path
+        from utils.source_torrent import validate
+        if data.get('magnet') or not data.get('torrent'):
+            raise ValueError('Existing data requires the original .torrent file, not a magnet.')
+        value, name, raw, _ = parse_source(data)
+        source = content_path(str(data.get('existing_path') or ''), config)
+        root = Path(config.get('Paths', 'DATADIR')).resolve()
+        if source == root:
+            raise ValueError('Choose the existing release folder or file, not the entire content library.')
+        validate(Torrent.read_stream(io.BytesIO(raw)), source, allowed_root=root)
+        details = {key: data.get(key, default) for key, default in
+                   [('category', None), ('description', ''), ('images', []), ('metadata', {})]}
+        if not isinstance(details['metadata'], dict) or not isinstance(details['images'], list):
+            raise ValueError('Invalid release details.')
+        if len(str(details['description'])) > 30000 or len(details['images']) > 100:
+            raise ValueError('Release details are too large.')
+        identity = uuid.uuid4().hex
+        with self.history.connect() as db:
+            if db.execute("SELECT 1 FROM torrent_imports WHERE source_hash=? AND status!='cancelled'", (value,)).fetchone():
+                raise ValueError('This torrent is already in the import queue. Check Activity before retrying.')
+        # A private copy survives a closed browser and never goes into the description.
+        original = self._original_torrent({'id': identity, 'source_hash': value}, raw)
+        with self.workspace.lock:
+            if self.workspace.active:
+                raise ValueError('An upload is already running. Follow it in Activity.')
+            review = self.workspace.review(dict(details, source=str(source)), source_torrent=original)
+            if not review['ready']:
+                self.workspace.drafts.pop(review['review_id'], None)
+                raise ValueError('; '.join(review['errors']))
+            with self.history.connect() as db:
+                db.execute('INSERT INTO torrent_imports(id,client_id,source_hash,name,status,progress,remote_path,local_path,details,created,updated,folder_layout,seed_status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                    (identity, '', value, name, 'publishing', 1, '', review['job']['source'], json.dumps(details), time.time(), time.time(), 'existing', 'watch_folder'))
+            try:
+                result = self.workspace.upload(review['review_id'], identity=identity)
+                self.update(identity, status='uploaded', job_id=result['id'], error=None)
+                return result
+            except Exception:
+                self.update(identity, status='needs_review', error='Existing-data upload could not be confirmed. Check Activity and the site before retrying.')
+                raise
+
     def add(self, data):
         with self.lock:
             config = uploader.load_config()
@@ -121,6 +163,10 @@ class ImportQueue:
             if errors:
                 raise ValueError('Finish DirtyBytes setup before scheduling automatic uploads: ' + '; '.join(errors))
             uploader.check_writable(config)
+            if not isinstance(data.get('existing_data', False), bool):
+                raise ValueError('Existing data must be true or false.')
+            if data.get('existing_data'):
+                return self._add_existing(data, config)
             client = self.workspace.clients._client(str(data.get('client_id', '')))
             if not client['enabled']:
                 raise ValueError('Enable and test your qBittorrent connection in Clients first.')
@@ -168,6 +214,8 @@ class ImportQueue:
                 row = db.execute("SELECT * FROM torrent_imports WHERE id=? AND status='needs_review' AND job_id IS NULL", (identity,)).fetchone()
             if not row or self.history.get(identity):
                 raise ValueError('Only an unconfirmed import without an upload attempt can be resumed this way. Check upload history first.')
+            if row['folder_layout'] == 'existing':
+                raise ValueError('Check Activity and the site before retrying an existing-data upload. It is never downloaded or automatically retried.')
             torrent, _ = self.workspace.clients.import_status(row['client_id'], row['source_hash'])
             if not torrent:
                 raise ValueError('The exact source torrent was not found in its scheduled download folder. Check the client.')

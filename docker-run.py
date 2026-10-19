@@ -26,6 +26,15 @@ def command(args, config):
         if '..' in source.parts:
             raise ValueError('Docker uploads must be inside DATADIR.')
         args = ['upload', '/content/' + source.as_posix(), *args[2:]]
+    for index, argument in enumerate(args):
+        if argument == '--torrent' or argument.startswith('--torrent='):
+            inline = argument.startswith('--torrent=')
+            if not inline and index + 1 >= len(args):raise ValueError('--torrent requires the original .torrent path.')
+            original = Path(argument.split('=', 1)[1] if inline else args[index+1]).expanduser().resolve(strict=True)
+            if not original.is_file() or ',' in str(original):raise ValueError('Choose a torrent file with a Docker-compatible path.')
+            result += ['--mount', f'type=bind,source={original},target=/source/original.torrent,readonly']
+            if inline:args[index]='--torrent=/source/original.torrent'
+            else:args[index+1]='/source/original.torrent'
     if not args or args[0] in ('gui', 'web'):
         raise ValueError('Use Docker Compose for the browser interface. This helper runs check, upload or watch.')
     return result + ['dirtybytes-uploader:local'] + args

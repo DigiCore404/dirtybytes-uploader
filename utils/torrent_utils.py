@@ -246,14 +246,16 @@ def create_torrent(directory,temp_dir,edit,hasher,total_size_bytes=None,exclude_
     if not directory.is_relative_to(verification_root):verification_root=directory
     editing=False
     imported=None
-    if source_torrent:
-        from utils.source_torrent import prepare
-        imported=prepare(source_torrent,directory,temp_dir/'imported-source.torrent')
+    if source_torrent or edit:
+        if exclude_globs or exclude_regexs:
+            raise ValueError('Reusing an existing torrent cannot exclude payload files. No rehash was started.')
+        original=Path(source_torrent) if source_torrent else original
+        if original is None or not original.is_file():
+            raise ValueError('The original torrent is missing. Upload stopped; no rehash was started.')
+        from utils.source_torrent import prepare, validate
+        validate(original,directory,allowed_root=verification_root)
+        imported=prepare(original,directory,temp_dir/'imported-source.torrent',allowed_root=verification_root)
         original=temp_dir/'imported-source.torrent'
-        if exclude_globs or exclude_regexs:raise ValueError('Import torrent editing cannot exclude payload files. Extracted/changed payloads need a separate new upload.')
-    if (source_torrent or edit) and original and original.is_file() and not exclude_globs and not exclude_regexs:
-        metadata=Torrent.read(original)
-        if metadata.name!=directory.name or not metadata.verify_filesize(directory,allowed_root=verification_root):raise ValueError('Existing torrent does not match the selected release files.')
         command=[binary,'modify',str(original),'--output',output.stem,'--output-dir',str(temp_dir),*common]
         editing=True
     else:
@@ -287,8 +289,9 @@ def create_torrent(directory,temp_dir,edit,hasher,total_size_bytes=None,exclude_
         metainfo,_=decode(output.read_bytes());metainfo[b'created by']=creator.encode('utf-8')
         output.write_bytes(encode(metainfo))
     metadata=Torrent.read(output)
-    if imported and metadata.metainfo['info']['pieces']!=imported.metainfo['info']['pieces']:
-        raise RuntimeError('Edited torrent changed its piece hashes.')
+    if imported and (metadata.metainfo['info']['pieces']!=imported.metainfo['info']['pieces'] or metadata.piece_size!=imported.piece_size or metadata.file_sizes!=imported.file_sizes or
+                     [p.parts[1:] for p in metadata.files] != [p.parts[1:] if len(p.parts)>1 else (p.name,) for p in imported.files]):
+        raise RuntimeError('Edited torrent changed its piece hashes or payload layout. Upload stopped.')
     if metadata.trackers != [[config.get('Torrent','ANNOUNCEURL')]]:
         raise RuntimeError('Torrent tracker replacement failed; no upload was started.')
     if not metadata.private or metadata.source!=config.get('Torrent','ESOURCE') or not metadata.verify_filesize(directory,allowed_root=verification_root):raise RuntimeError('mkbrr output does not match the private release payload.')

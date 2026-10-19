@@ -155,7 +155,20 @@ def main():
 
         original_release_name = directory_name
         try:
-            directory, rar_source = prepare_source(directory, log_file_path)
+            reuse_torrent = bool(job.get('source_torrent') or config.getboolean('Torrent', 'EDIT_TORRENT'))
+            if reuse_torrent:
+                from utils.source_torrent import validate
+                original = job.get('source_torrent')
+                if not original:
+                    folder = config.get('Torrent', 'SOURCEFOLDER', fallback='').strip()
+                    if not folder:raise ValueError('The original torrent folder is missing. No rehash was started.')
+                    original = Path(folder) / (directory.name + '.torrent')
+                validate(original, directory, allowed_root=base_dir)
+                job['source_torrent'] = str(original)
+                rar_source = None  # Reuse preserves the original payload, including archives.
+                config.set('UnrarUpload', 'MODE', 'original_only')
+            else:
+                directory, rar_source = prepare_source(directory, log_file_path)
             directory_name = directory.name
         except Exception as exc:
             print(f'Cannot prepare unpacked source: {exc}', flush=True)
@@ -244,7 +257,7 @@ def main():
                         log(f"Error processing .nfo file for duplicate UNRAR upload: {str(e)}", log_file_path)
 
                     try:
-                        unrar_result = run_unrar_upload(
+                        unrar_result = {'status': 'skipped', 'reason': 'existing_torrent'} if reuse_torrent else run_unrar_upload(
                             release_name=directory_name,
                             release_dir=directory,
                             category_name=category_name,
@@ -340,7 +353,7 @@ def main():
             # Capture both torrent_file and piece_size from create_torrent
             torrent_file, piece_size = create_torrent(directory, temp_dir,
                                                       config.getboolean('Torrent', 'EDIT_TORRENT'), hasher,
-                                                      total_size_bytes=total_size_bytes, source_torrent=None if rar_source else job.get('source_torrent'))
+                                                      total_size_bytes=total_size_bytes, source_torrent=job.get('source_torrent'))
 
             if torrent_file is None:
                 raise RuntimeError("Failed to create torrent file.")
@@ -482,7 +495,7 @@ def main():
                       watch_torrent=upload_result.get('watch_torrent'))
 
             try:
-                unrar_result = run_unrar_upload(
+                unrar_result = {'status': 'skipped', 'reason': 'existing_torrent'} if reuse_torrent else run_unrar_upload(
                     release_name=directory_name,
                     release_dir=directory,
                     category_name=category_name,

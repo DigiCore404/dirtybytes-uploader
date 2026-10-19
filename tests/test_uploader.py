@@ -187,6 +187,46 @@ TorrentDownloadRetryDelay = 0
         self.config = uploader.load_config()
         return state
 
+    def test_reuse_existing_torrent_worker_preserves_hashes(self):
+        from torrent_fixtures import Torrent
+        from utils.torrent_metadata import TorrentMetadata
+        original=self.root/'original.torrent'
+        fixture=Torrent(self.release);fixture.generate();original.write_bytes(fixture.dump())
+        before=TorrentMetadata.read(original)
+        state=self.serve()
+        with self.cfg.open('a') as stream:
+            stream.write('\n[UnrarUpload]\nENABLED = true\nMODE = unpacked_only\n')
+        self.config=uploader.load_config()
+        job=uploader.validate_job(self.release,25,config=self.config,source_torrent=original)
+        output=[];events=[]
+        def emit(line):output.append(line)
+        emit.event=events.append
+        result=uploader.run_job(job,self.config,emit)
+        self.assertEqual(result,0,'\n'.join(output))
+        self.assertEqual(len(state['posts']),1)
+        after=TorrentMetadata(state['torrent'])
+        self.assertEqual(after.metainfo['info']['pieces'],before.metainfo['info']['pieces'])
+        self.assertEqual(after.file_sizes,before.file_sizes)
+        self.assertTrue(any(e.get('hash_mode')=='editing' for e in events))
+        self.assertFalse(any(e.get('hash_mode')=='hashing' for e in events))
+        self.assertEqual(len(list((self.root/'watch').glob('*.torrent'))),1)
+        self.assertEqual(original.read_bytes(),fixture.dump())
+
+    def test_cli_reuse_dry_run_and_mismatch_never_upload(self):
+        from torrent_fixtures import Torrent
+        torrent=Torrent(self.release);torrent.generate()
+        original=self.root/'original.torrent';original.write_bytes(torrent.dump())
+        command=[sys.executable,str(ROOT/'uploader.py'),'upload',str(self.release),'--cat','25','--torrent',str(original),'--dry-run']
+        result=subprocess.run(command,capture_output=True,text=True,env=os.environ,timeout=20)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('Reuse only: no download or rehash',result.stdout)
+        (self.release/'payload.txt').write_bytes(b'mismatch')
+        result=subprocess.run(command,capture_output=True,text=True,env=os.environ,timeout=20)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('no rehash',result.stderr)
+        self.assertFalse((self.root/'watch').exists())
+        self.assertFalse((self.root/'tmp').exists())
+
     def test_full_upload_hash_metadata_download_and_watch_folder(self):
         state = self.serve()
         job = self.job(description='Custom BBCode description',

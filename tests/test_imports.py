@@ -54,6 +54,7 @@ class ImportTests(unittest.TestCase):
     def complete(self,row,progress=1):
         root=Path(row['local_path']);folder=self.release_source(row);folder.mkdir(parents=True)
         (folder/'video.mp4').write_bytes(b'test media')
+        original=Torrent(folder);original.generate();(self.root/'original.torrent').write_bytes(original.dump())
         self.status.return_value=({'hash':HASH,'progress':1,'state':'uploading','save_path':row['remote_path']},
             [{'name':('video.mp4' if row['folder_layout']!='legacy' else 'Sample.Release/video.mp4'),'size':10,'progress':progress}])
     def test_file_and_magnet_hashes(self):
