@@ -6,7 +6,7 @@ import sqlite3
 import time
 
 STATUSES = ('running', 'completed', 'duplicate', 'needs_review', 'interrupted')
-EVENT_FIELDS = {'stage', 'site_status', 'torrent_id', 'torrent_name', 'watch_torrent', 'error', 'exit_code', 'torrent_hash', 'hash_progress', 'hash_mode', 'hash_total'}
+EVENT_FIELDS = {'stage', 'site_status', 'torrent_id', 'torrent_name', 'watch_torrent', 'error', 'exit_code', 'torrent_hash', 'hash_progress', 'hash_mode', 'hash_total', 'delivery_status', 'delivery_error'}
 
 
 class JobHistory:
@@ -43,6 +43,8 @@ class JobHistory:
             columns={row[1] for row in db.execute('PRAGMA table_info(upload_jobs)')}
             for name,kind in [('hash_progress','REAL'),('hash_mode','TEXT'),('hash_total','INTEGER')]:
                 if name not in columns:db.execute(f'ALTER TABLE upload_jobs ADD COLUMN {name} {kind}')
+            for name in ('delivery_status','delivery_error'):
+                if name not in columns:db.execute(f'ALTER TABLE upload_jobs ADD COLUMN {name} TEXT')
             if 'torrent_hash' not in {row[1] for row in db.execute('PRAGMA table_info(upload_jobs)')}:
                 db.execute('ALTER TABLE upload_jobs ADD COLUMN torrent_hash TEXT')
         if __import__('os').name != 'nt':
@@ -108,7 +110,7 @@ class JobHistory:
             db.execute('''INSERT INTO upload_jobs
                 (id, name, source, category, status, stage, started, description, metadata_json, images_json)
                 VALUES (?, ?, ?, ?, 'running', 'starting', ?, ?, ?, ?)''',
-                (identity, Path(job['source']).name, job['source'], job['category'], now,
+                (identity, job.get('release_name') or (Path(job['source']).stem if Path(job['source']).is_file() else Path(job['source']).name), job['source'], job['category'], now,
                  job.get('description', ''), json.dumps(job.get('metadata', {}), ensure_ascii=False),
                  json.dumps(job.get('images', []), ensure_ascii=False)))
             self._event(db, identity, 'running', 'starting', {})

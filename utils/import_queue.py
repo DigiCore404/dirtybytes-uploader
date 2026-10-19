@@ -121,7 +121,7 @@ class ImportQueue:
         if data.get('magnet') or not data.get('torrent'):
             raise ValueError('Existing data requires the original .torrent file, not a magnet.')
         value, name, raw, _ = parse_source(data)
-        source = content_path(str(data.get('existing_path') or ''), config)
+        source = content_path(str(data.get('existing_path') or ''), config, allow_file=True)
         root = Path(config.get('Paths', 'DATADIR')).resolve()
         if source == root:
             raise ValueError('Choose the existing release folder or file, not the entire content library.')
@@ -304,6 +304,7 @@ class ImportQueue:
                         original=self._original_torrent(row)
                         review = self.workspace.review(dict(details, source=str(source)))
                         self.workspace.drafts[review['review_id']]['job']['source_torrent']=str(original)
+                        self.workspace.drafts[review['review_id']]['job']['delivery_managed']=True
                         if not review['ready']:
                             raise ValueError('; '.join(review['errors']))
                         self.update(row['id'], status='publishing', error=None)

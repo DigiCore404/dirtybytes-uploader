@@ -168,7 +168,9 @@ TorrentDownloadRetryDelay = 0
                 self.end_headers()
                 self.wfile.write(b'{"id":123,"name":"Test.Release"}' if mode != 'bad-confirmation' else b'not JSON')
             def do_GET(self):
-                if 'exact_search' in self.path:
+                if self.path.startswith('/api/v1/upload-preferences'):
+                    data = b'{"anonym":"no"}'
+                elif 'exact_search' in self.path:
                     data = b'not JSON' if mode == 'bad-dupe-check' else b'[{"id":123,"name":"Test.Release"}]'
                 else:
                     data = state['torrent'] if mode != 'bad-download' else b'invalid torrent'

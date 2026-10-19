@@ -19,6 +19,7 @@ COPY requirements.lock.txt ./
 RUN pip install --no-cache-dir -r requirements.lock.txt
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/dirtybytes-browsers
 RUN python -m playwright install --with-deps --no-shell chromium && chmod -R a+rX /opt/dirtybytes-browsers
+COPY CHANGELOG.md ./
 COPY defaults.ini config.example.ini uploader.py backend.py web.py ./
 COPY utils/ ./utils/
 COPY webui/ ./webui/

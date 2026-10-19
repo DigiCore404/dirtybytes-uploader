@@ -17,6 +17,28 @@ import web
 
 
 class WebTests(unittest.TestCase):
+    def test_persistent_drafts_and_changelog_require_authentication_and_csrf(self):
+        payload={'source':str(self.release),'category':3,'description':'Saved without publishing'}
+        self.assertEqual(self.post('/api/drafts/save',payload).status_code,401)
+        self.assertEqual(self.client.get(self.base+'/api/changelog').status_code,401)
+        self.login()
+        token=self.csrf;self.csrf='invalid'
+        self.assertEqual(self.post('/api/drafts/save',payload).status_code,403);self.csrf=token
+        with patch.object(uploader,'run_job',side_effect=AssertionError('Drafts must not publish')):
+            saved=self.post('/api/drafts/save',payload)
+            self.assertEqual(saved.status_code,200,saved.text);identity=saved.json()['id']
+            self.assertEqual(self.client.get(self.base+'/api/drafts').json()['drafts'][0]['id'],identity)
+            preview=self.post('/api/drafts/preview',{'id':identity});self.assertEqual(preview.status_code,202,preview.text)
+            self.server.workspace.saved_drafts.preview_thread.join(10)
+            result=self.client.get(self.base+'/api/drafts/'+identity).json();self.assertEqual(result['state'],'ready',result['error'])
+            self.assertIn('Saved without publishing',result['preview']['description'])
+            self.assertEqual(self.client.get(self.base+'/api/drafts/'+identity+'/images/'+result['revision']+'/missing.jpg').status_code,400)
+            self.assertEqual(self.post('/api/drafts/delete',{'id':identity}).status_code,200)
+            self.assertEqual(self.client.get(self.base+'/api/drafts').json()['drafts'],[])
+        history=self.client.get(self.base+'/api/changelog').json()['text']
+        self.assertIn('Earlier changes',history);self.assertIn('persistent upload drafts',history)
+        self.assertNotIn('Replace dash in existing-data import label',history)
+
     def test_nonobject_options_and_metadata_return_400(self):
         self.login()
         for options in ([], None, 'invalid'):
@@ -64,7 +86,8 @@ class WebTests(unittest.TestCase):
         response = self.post('/api/sources/prepare-file', {'source': str(source)})
         self.assertEqual(response.status_code, 200, response.text)
         folder = Path(response.json()['source'])
-        self.assertTrue((folder/source.name).samefile(source))
+        self.assertEqual(folder,source)
+        self.assertFalse((source.parent/source.stem).exists())
         reviewed = self.post('/api/review', {'source': str(folder), 'category':3})
         self.assertEqual(reviewed.status_code, 200, reviewed.text)
         self.assertEqual(reviewed.json()['summary']['files'], 1)
@@ -185,7 +208,8 @@ class WebTests(unittest.TestCase):
             self.assertEqual(response.status_code, 202, response.text)
             job = self.server.workspace.drafts[upload.call_args.args[0]]['job']
             self.assertEqual(job['category'], identity)
-            self.assertTrue((Path(job['source']) / loose.name).samefile(loose))
+            self.assertEqual(Path(job['source']),loose)
+            self.assertFalse((loose.parent/loose.stem).exists())
         self.assertEqual(loose.read_bytes(), before)
 
     def setUp(self):

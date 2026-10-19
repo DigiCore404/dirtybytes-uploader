@@ -45,7 +45,7 @@ def check(files):
 
 def source_files():
     names = ['Dockerfile', '.dockerignore', '.gitignore', '.env.example', 'compose.yaml', 'compose.unrar.yaml',
-             'setup.sh', 'README.md', 'README-docker.md', 'SEEDBOX-INSTALL.md', 'install.sh', 'start.sh',
+             'setup.sh', 'README.md', 'CHANGELOG.md', 'AGENTS.md', 'README-docker.md', 'SEEDBOX-INSTALL.md', 'install.sh', 'start.sh',
              'start-web.sh', 'docker-run.py', 'defaults.ini', 'config.example.ini', 'config.seedbox.ini',
              'requirements.txt', 'requirements.lock.txt', 'uploader.py', 'web.py', 'backend.py',
              'files/template.txt', 'files/filters.json', 'files/dirtybytes-categories.json']

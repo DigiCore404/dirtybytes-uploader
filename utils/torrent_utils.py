@@ -238,9 +238,9 @@ def create_torrent(directory,temp_dir,edit,hasher,total_size_bytes=None,exclude_
     binary=find_tool('mkbrr',config)
     if not binary:raise RuntimeError('mkbrr is missing. Configure Torrent.MKBRR_BIN or reinstall the package.')
     if hasher!='mkbrr':raise ValueError('Set Torrent.HASHER = mkbrr; the torf engine has been removed.')
-    output=temp_dir/(directory.name+'.torrent')
+    output=temp_dir/((directory.stem if directory.is_file() else directory.name)+'.torrent')
     source_folder=config.get('Torrent','SOURCEFOLDER',fallback='').strip()
-    original=Path(source_folder)/(directory.name+'.torrent') if source_folder else None
+    original=Path(source_folder)/((directory.stem if directory.is_file() else directory.name)+'.torrent') if source_folder else None
     common=['--tracker',config.get('Torrent','ANNOUNCEURL'),'--private','--source',config.get('Torrent','ESOURCE'),'--comment',config.get('Torrent','ECOMMENT'),'--skip-prefix']
     verification_root=Path(config.get('Paths','DATADIR')).resolve()
     if not directory.is_relative_to(verification_root):verification_root=directory
@@ -290,7 +290,7 @@ def create_torrent(directory,temp_dir,edit,hasher,total_size_bytes=None,exclude_
         output.write_bytes(encode(metainfo))
     metadata=Torrent.read(output)
     if imported and (metadata.metainfo['info']['pieces']!=imported.metainfo['info']['pieces'] or metadata.piece_size!=imported.piece_size or metadata.file_sizes!=imported.file_sizes or
-                     [p.parts[1:] for p in metadata.files] != [p.parts[1:] if len(p.parts)>1 else (p.name,) for p in imported.files]):
+                     [p.parts[1:] if len(p.parts)>1 else (p.name,) for p in metadata.files] != [p.parts[1:] if len(p.parts)>1 else (p.name,) for p in imported.files]):
         raise RuntimeError('Edited torrent changed its piece hashes or payload layout. Upload stopped.')
     if metadata.trackers != [[config.get('Torrent','ANNOUNCEURL')]]:
         raise RuntimeError('Torrent tracker replacement failed; no upload was started.')

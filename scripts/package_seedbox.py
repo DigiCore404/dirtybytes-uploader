@@ -18,7 +18,7 @@ from utils.app_version import VERSION
 
 
 def entries():
-    names=['defaults.ini','requirements.txt','requirements.lock.txt','uploader.py',
+    names=['CHANGELOG.md','defaults.ini','requirements.txt','requirements.lock.txt','uploader.py',
            'web.py','backend.py','install.sh','start.sh','start-web.sh',
            'scripts/service.py','scripts/upload.sh','scripts/build-archive-tools.sh']
     names += [p.relative_to(ROOT).as_posix() for p in sorted((ROOT/'utils').glob('*.py'))]

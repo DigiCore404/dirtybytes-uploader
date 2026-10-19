@@ -38,7 +38,7 @@ class SingleFileTests(unittest.TestCase):
    with self.assertRaisesRegex(ValueError,'Could not create'):prepare(str(self.file),self.config)
   self.assertTrue(self.file.exists());self.assertFalse((self.library/self.file.stem).exists())
  def test_modes_are_a_validated_settings_dropdown(self):
-  section=next(s for s in schema(self.config) if s['section']=='SingleFiles');field=section['fields'][0]
+  section=next(s for s in schema(self.config) if s['section']=='SingleFiles');field=next(f for f in section['fields'] if f['key']=='link_mode')
   self.assertEqual(field['type'],'select');self.assertEqual({v['value'] for v in field['options']},{'hardlink','softlink'})
   apply(self.config,{'SingleFiles':{'link_mode':'softlink'}});self.assertEqual(self.config.get('SingleFiles','LINK_MODE'),'softlink')
   with self.assertRaises(ValueError):apply(self.config,{'SingleFiles':{'link_mode':'copy'}})

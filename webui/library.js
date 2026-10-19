@@ -1,11 +1,13 @@
 'use strict';
 let librarySelected=null,libraryRequest=0;
-let libraryPath='',libraryListing=null,libraryOverrides=new Map(),libraryBusy=false;
-async function loadLibrary(path=libraryPath){
+let libraryPath='',libraryListing=null,libraryOverrides=new Map(),libraryBusy=false,libraryBackPaths=[];
+function libraryCanGoBack(){return Boolean(libraryBackPaths.length||libraryListing?.parent);}
+function backLibrary(){const path=libraryBackPaths[libraryBackPaths.length-1]||libraryListing?.parent;if(path)return loadLibrary(path,true);}
+async function loadLibrary(path=libraryPath,back=false){
  const request=++libraryRequest;
  const table=$('library-rows');table.replaceChildren(element('p','field-help','Reading folders and filters.json…'));
  try{
-  const listing=await api('/api/library'+(path?'?path='+encodeURIComponent(path):''));if(request!==libraryRequest)return;libraryListing=listing;libraryPath=listing.path;
+  const listing=await api('/api/library'+(path?'?path='+encodeURIComponent(path):''));if(request!==libraryRequest)return;if(back){if(libraryBackPaths[libraryBackPaths.length-1]===listing.path)libraryBackPaths.pop();}else if(libraryPath&&libraryPath!==listing.path)libraryBackPaths.push(libraryPath);libraryListing=listing;libraryPath=listing.path;$('library-back').disabled=!libraryCanGoBack();refreshBackNavigation();
   $('library-path').textContent=listing.path;$('library-up').disabled=!listing.parent;
   const bookmarks=$('library-folders');bookmarks.replaceChildren(new Option('Content library',listing.root));
   for(const saved of listing.saved_folders)if(saved!==listing.root)bookmarks.append(new Option(saved,saved));
@@ -28,13 +30,14 @@ async function loadLibrary(path=libraryPath){
    item.append(open,info,category,upload,more);table.append(item);if(table.children.length%100===0)await new Promise(requestAnimationFrame);
   }
   if(!listing.folders.length&&!listing.files.length)table.append(element('p','field-help','This folder is empty.'));
- }catch(error){table.replaceChildren(element('p','field-help',error.message));}
+ }catch(error){if(request!==libraryRequest)return;table.replaceChildren(element('p','field-help',error.message));}
 }
 async function uploadFromLibrary(row,details={}){
  if(libraryBusy)return;libraryBusy=true;$('library-context').hidden=true;
  try{const payload={source:row.path,...details};if(!('category' in details)&&libraryOverrides.has(row.path))payload.category=libraryOverrides.get(row.path);if(!('category' in payload)&&row.category)payload.expected_category=row.category.id;const result=await api('/api/library/upload',payload);toast('Upload started. Automatic processing is running.');$('library-metadata-dialog').close();page('activity');openJob(result.id);}
  catch(error){toast(error.message,true);}finally{libraryBusy=false;}
 }
+$('library-back').addEventListener('click',backLibrary);
 $('library-up').addEventListener('click',()=>{if(libraryListing?.parent)loadLibrary(libraryListing.parent);});
 $('library-refresh').addEventListener('click',()=>loadLibrary());
 $('library-folders').addEventListener('change',()=>loadLibrary($('library-folders').value));
@@ -60,6 +63,8 @@ function openLibraryMenu(row,kind,event){
  if(kind==='folder')action('Open folder',()=>loadLibrary(row.path));
  action('Upload Direct',()=>uploadFromLibrary(row),!row.category&&!libraryOverrides.has(row.path));
  action('Upload with metadata',()=>openLibraryMetadata(row));
+ action('Save as draft',()=>saveDraftPayload({source:row.path,category:libraryOverrides.get(row.path)||row.category?.id||null,description:'',images:[],metadata:{}},null).then(()=>toast('Draft saved. Open it from Drafts.')).catch(error=>toast(error.message,true)));
+ action('Preview without uploading',()=>saveDraftPayload({source:row.path,category:libraryOverrides.get(row.path)||row.category?.id||null,description:'',images:[],metadata:{}},null).then(draft=>previewSavedDraft(draft.id)).catch(error=>toast(error.message,true)));
  action('Test category rules',async()=>{page('settings');$('category-filters-panel').open=true;await loadCategoryFilters();$('filters-test-name').value=row.name;$('filters-test').click();$('category-filters-panel').scrollIntoView({block:'start'});});
  action('Copy path',async()=>{try{if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(row.path);else{const input=element('textarea');input.value=row.path;document.body.append(input);input.select();const copied=document.execCommand('copy');input.remove();if(!copied)throw new Error('Copy unavailable');}toast('Path copied.');}catch(error){toast('Could not copy the path: '+row.path,true);}});
  action('Refresh',()=>loadLibrary());
@@ -75,3 +80,12 @@ $('library-metadata-close').addEventListener('click',()=>$('library-metadata-dia
 $('library-lookup').addEventListener('click',()=>openMetadata('library'));
 $('library-metadata-form').addEventListener('submit',async event=>{event.preventDefault();if(!librarySelected)return;const button=event.submitter;button.disabled=true;try{const details={description:$('library-description').value,images:$('library-images').value.split('\n').map(x=>x.trim()).filter(Boolean),metadata:{}};for(const [id,key] of [['studio','studio'],['performers','performers'],['genre','content_tags'],['year','release_year'],['runtime','runtime_minutes'],['language','language'],['imdb','imdbId'],['game-url','gameUrl']])if($('library-'+id)?.value.trim())details.metadata[key]=$('library-'+id).value.trim();if($('library-category').value)details.category=Number($('library-category').value);await uploadFromLibrary(librarySelected,details);}finally{button.disabled=false;}});
 window.addEventListener('resize',()=>$('library-context').hidden=true);
+
+async function saveLibraryDraft(preview=false){
+ if(!librarySelected)return;
+ const details={source:librarySelected.path,category:Number($('library-category').value)||libraryOverrides.get(librarySelected.path)||librarySelected.category?.id||null,description:$('library-description').value,images:$('library-images').value.split('\n').map(x=>x.trim()).filter(Boolean),metadata:{}};
+ for(const [id,key] of [['studio','studio'],['performers','performers'],['genre','content_tags'],['year','release_year'],['runtime','runtime_minutes'],['language','language'],['imdb','imdbId'],['game-url','gameUrl']])if($('library-'+id)?.value.trim())details.metadata[key]=$('library-'+id).value.trim();
+ try{const draft=await saveDraftPayload(details,null);toast('Draft saved. Nothing was published.');if(preview)await previewSavedDraft(draft.id);}catch(error){toast(error.message,true);}
+}
+$('save-library-draft').addEventListener('click',()=>saveLibraryDraft(false));
+$('preview-library-draft').addEventListener('click',()=>saveLibraryDraft(true));

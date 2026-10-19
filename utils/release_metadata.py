@@ -140,7 +140,7 @@ def extract_language(release_name):
 def runtime_minutes(directory):
     """Runtime in whole minutes from the largest media file, via mediainfo."""
     try:
-        media = [p for p in Path(directory).rglob('*')
+        media = [p for p in ([Path(directory)] if Path(directory).is_file() else Path(directory).rglob('*'))
                  if p.is_file() and p.suffix.lower() in MEDIA_EXTS
                  and 'sample' not in str(p).lower()]
         if not media:

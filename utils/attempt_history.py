@@ -33,6 +33,8 @@ def record(root, job, config, output, worker):
 
     emit.event = event
     emit.history_managed = True
+    emit.history_store = history
+    emit.job_id = identity
     try:
         code = worker(emit)
     except BaseException as exc:

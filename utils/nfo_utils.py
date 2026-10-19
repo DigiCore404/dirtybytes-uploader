@@ -23,6 +23,10 @@ def find_nfo_file(directory):
     Returns:
         Path: The path to the found .nfo file, or None if no .nfo file is found.
     """
+    directory=Path(directory)
+    if directory.is_file():
+        sidecar=directory.with_suffix('.nfo')
+        return sidecar if sidecar.is_file() else None
     for file in directory.iterdir():
         if file.suffix.lower() == '.nfo':
             return file

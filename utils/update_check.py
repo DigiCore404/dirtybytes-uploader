@@ -106,3 +106,16 @@ def check(version):
             print('New ' + NAME + ' release: v' + release['latest_version'] + ' (' + release['release_url'] + ')', flush=True)
     except (requests.RequestException, ValueError, TypeError, KeyError):
         pass
+
+
+def changelog(root, version=None):
+    local = (Path(root) / 'CHANGELOG.md').read_text(encoding='utf-8')
+    if version and version_parts(version) > version_parts(VERSION):
+        try:
+            response = requests.get('https://raw.githubusercontent.com/' + REPOSITORY + '/v' + version + '/CHANGELOG.md', timeout=5, allow_redirects=False)
+            if response.status_code == 200 and response.text.startswith('# ') and len(response.content) <= 1000000:
+                return {'text': response.text, 'source': 'latest release'}
+        except requests.RequestException:
+            pass
+        return {'text': local, 'source': 'installed version', 'notice': 'The latest release changelog could not be retrieved. Showing the installed change history.'}
+    return {'text': local, 'source': 'installed version'}

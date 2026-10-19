@@ -72,7 +72,10 @@ class ScreenshotBatchTests(unittest.TestCase):
     def test_sample_only_fallback_is_optional(self):
         self.video('samples/sample.mp4')
         self.config.set('Settings', 'SCREENSHOT_SAMPLE_FALLBACK', 'false')
-        generate_batch(self.media, self.config, self.capture)
+        with self.assertRaisesRegex(RuntimeError,'no eligible video'):
+            generate_batch(self.media, self.config, self.capture)
+        self.config.set('Settings','REQUIRE_SCREENSHOTS','false')
+        generate_batch(self.media,self.config,self.capture)
         self.assertFalse(self.target.exists())
         self.config.set('Settings', 'SCREENSHOT_SAMPLE_FALLBACK', 'true')
         generate_batch(self.media, self.config, self.capture)

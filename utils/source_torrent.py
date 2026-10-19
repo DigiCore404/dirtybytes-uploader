@@ -36,7 +36,7 @@ def prepare(original,directory,target,allowed_root=None):
     meta,_=decode(metadata.raw);info=meta[b'info']
     # A single-file download is kept in a release directory by the import UI.
     # Wrap that same file without changing its piece hashes or byte order.
-    if b'files' not in info:
+    if b'files' not in info and Path(directory).is_dir():
         info[b'files']=[{b'length':info.pop(b'length'),b'path':[metadata.name.encode('utf-8')]}]
     info[b'name']=Path(directory).name.encode('utf-8');info.pop(b'name.utf-8',None)
     clean={b'info':info}

@@ -4,10 +4,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 ROOT=Path(__file__).resolve().parents[1]
 DEDICATED={('Website','api_key'),('Torrent','announceurl'),('Torrent','hasher'),('Paths','datadir'),('Paths','watchfolder'),('ImageHost','provider'),('ImageHost','api_key'),('ThePornDB','token'),('Metadata','search_ignore_words'),('MediaTools','screenshot_engine')}
+DEDICATED.add(('UploadForm','anonymous'))
+DEDICATED.add(('Delivery','mode'))
 DEDICATED|={('Settings',k) for k in ('image_upload','screenshots','mediainfo','dupecheck')}
 TITLES={'MediaTools':'Screenshots & thumbnail sheets','Torrent':'Torrent creation & editing','Settings':'Upload behaviour','UploadForm':'DirtyBytes publication','Paths':'Files & folders','ImageHost':'Custom image host','Network':'Network & retries','UnrarUpload':'Archive handling (UNRAR / rar2fs)','Website':'DirtyBytes site','SingleFiles':'Single-file uploads'}
 HELP={
  'check_updates':'Check for new stable releases in the web interface. Only the public uploader repository is queried; no configuration or credentials are sent.',
+ 'create_release_folder':'On: create a release folder beside a loose file using the selected link mode. Off: upload the original file directly, with no extra folder, link or copy. The posted title excludes its extension. Preview and dry-run never create the folder.',
  'link_mode':'Hardlink: no duplicate data, requires the same filesystem. Softlink: a relative link; the original file must remain available to the uploader and seeding client. The release folder is created beside the original file, which stays in place.',
  'screenshot_video_mode':'Automatic (default): all videos for pack categories, one video for other releases. One video: use the first working main video. All videos: create previews for every main video in the release, including subfolders. Sheet and separate screenshot counts apply to each video. Used by both web and CLI.',
  'screenshot_sheet':'Generate one contact sheet per selected video. Requires the MTN engine.',
@@ -33,6 +36,7 @@ HELP={
  'addfastresume':'Add client-specific fast-resume data. Off is recommended; let qBittorrent recheck.',
  'watchfolder_fallback_plain':'Allow a plain torrent when fast-resume delivery is unavailable.',
  'watchfolder_fallback_uploaded_torrent':'Allow the locally uploaded torrent as a delivery fallback if the confirmed download fails.',
+ 'anonymity':'Account preference: read your site account setting before publication. Anonymous: always post anonymously. Named: always post under your account. Legacy anonymous=1 remains private until you choose and save a mode.',
  'anonymous':'0 publishes under your account; 1 requests anonymous publication.', 'freeleech':'0 or 1, subject to the tracker permissions of your account.',
  'template_path':'Description template on the uploader server. Supports !description!, !nfo! and !screenshots! placeholders.',
  'filters':'JSON release-filter file on the server.', 'tmp_dir':'Uploader scratch directory; separate from media storage.', 'uploadlog':'Uploader log file on the server.',
@@ -49,7 +53,7 @@ HELP={
  'log':'Archive-processing log file.', 'cleanup_log':'Archive-cleanup log file.', 'cleanup_after_qbit_remove':'Allow eligible mount cleanup after removing the linked client torrent.',
  'cleanup_grace_seconds':'Wait this many seconds before eligible archive cleanup.', 'keep_failed_mounts':'Keep a failed archive mount for diagnosis.',
  'regenerate_mediainfo':'Regenerate technical information for extracted media.', 'mount_ready_timeout':'Seconds to wait for a new archive mount to become readable.'}
-LABELS={'uploadimgurl':'Upload API URL','authcode':'Authorization','nsfw':'Mark images as adult','screenshot_video_mode':'Videos to capture','link_mode':'Link mode for single files','mtnwidth':'Sheet width (pixels)','mtnsetting':'MTN grid & layout','mtnpostby':'Sheet footer','mtnfontfile':'MTN font','mtnbin':'MTN executable','screenshot_sheet':'Thumbnail sheet','screenshot_singles':'Separate screenshots','sourcefolder':'Source torrent folder','mkbrr_bin':'mkbrr executable','esource':'Torrent source tag','ecomment':'Torrent comment','include_nfo':'Include folder NFO'}
+LABELS={'anonymity':'Upload identity','create_release_folder':'Create a release folder for single files','uploadimgurl':'Upload API URL','authcode':'Authorization','nsfw':'Mark images as adult','screenshot_video_mode':'Videos to capture','link_mode':'Link mode for single files','mtnwidth':'Sheet width (pixels)','mtnsetting':'MTN grid & layout','mtnpostby':'Sheet footer','mtnfontfile':'MTN font','mtnbin':'MTN executable','screenshot_sheet':'Thumbnail sheet','screenshot_singles':'Separate screenshots','sourcefolder':'Source torrent folder','mkbrr_bin':'mkbrr executable','esource':'Torrent source tag','ecomment':'Torrent comment','include_nfo':'Include folder NFO'}
 BOOL={'true','false'}
 RANGES={'screenshot_singles':(0,12),'mtnwidth':(320,7680),'timeout':(1,600),'torrentdownloadretries':(1,100),'torrentdownloadretrydelay':(0,300),'freeleech':(0,1),'anonymous':(0,1),'ratio_target':(0,1000),'cleanup_grace_seconds':(0,86400),'mount_ready_timeout':(1,600)}
 def defaults():
@@ -65,12 +69,16 @@ def schema(config):
    secret=key in ('cookie','authcode')
    kind='boolean' if default.lower() in BOOL else 'number' if key in RANGES or re.fullmatch(r'\d+(\.\d+)?',default or '-') else 'text'
    value=config.get(section,key,fallback=default)
+   if section=='UploadForm' and key=='anonymity' and value=='account' and config.getint('UploadForm','ANONYMOUS',fallback=0)==1:value='anonymous'
    if key=='mtnwidth':value=re.search(r'\d+',value)[0] if re.search(r'\d+',value) else '1280'
    locked=os.environ.get('DIRTYBYTES_CONTAINER')=='1' and ((section=='Paths' and key in ('tmp_dir','uploadlog')) or (section=='UnrarUpload' and key in ('mount_base','registry','log','cleanup_log')))
    fields.append({'key':key,'label':LABELS.get(key,key.replace('_',' ').capitalize()),'help':HELP.get(key,''),'type':'secret' if secret else kind,'value':'' if secret else value,'saved':bool(value) if secret else False,'locked':locked,'range':RANGES.get(key)})
   if section=='MediaTools':
    for field in fields:
     if field['key']=='screenshot_video_mode':field['type']='select';field['options']=[{'value':'auto','label':'Automatic (packs: all / other: one)'},{'value':'single','label':'One video'},{'value':'all','label':'All videos (packs / site rips)'}]
+  if section=='UploadForm':
+   for field in fields:
+    if field['key']=='anonymity':field['type']='select';field['options']=[{'value':'account','label':'Account preference'},{'value':'anonymous','label':'Anonymous'},{'value':'named','label':'Named'}]
   if section=='SingleFiles':
    for field in fields:
     if field['key']=='link_mode':field['type']='select';field['options']=[{'value':'hardlink','label':'Hardlink (same filesystem)'},{'value':'softlink','label':'Softlink (relative symbolic link)'}]
@@ -105,3 +113,4 @@ def apply(config,changes):
     if parsed.scheme not in ('http','https') or not parsed.hostname or parsed.username:raise ValueError('Enter a complete HTTP(S) URL.')
    if key=='mode' and text not in ('unpacked_only','original_only'):raise ValueError('Choose unpacked_only or original_only.')
    config.set(section,key,text)
+   if section=='UploadForm' and key=='anonymity':config.set(section,'anonymous','0')

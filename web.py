@@ -38,11 +38,11 @@ def config_digest(config):
     return hashlib.sha256(repr({s: dict(config[s]) for s in config.sections()}).encode()).hexdigest()
 
 
-def content_path(value, config):
+def content_path(value, config, allow_file=False):
     root = Path(config.get('Paths', 'DATADIR')).resolve()
     path = Path(value or root).expanduser()
     path = (path if path.is_absolute() else root / path).resolve(strict=True)
-    if not path.is_relative_to(root) or not path.is_dir():
+    if not path.is_relative_to(root) or not (path.is_dir() or allow_file and path.is_file()):
         raise ValueError('Choose a folder inside the configured content folder.')
     return path
 
@@ -70,6 +70,10 @@ def browse(value, config, max_entries=1000):
 
 
 def folder_summary(path):
+    path=Path(path)
+    if path.is_file():
+        suffix=path.suffix.lower()
+        return {'files':1,'bytes':path.stat().st_size,'images':int(suffix in ('.jpg','.jpeg','.png','.gif','.webp')),'videos':int(suffix in ('.mp4','.mkv','.avi','.mov','.wmv','.webm','.m4v','.ts','.m2ts')),'archives':int(bool(re.search(r'\.(rar|r\d{2,3}|zip|7z)$',path.name,re.I))),'limited':False}
     count = size = images = videos = archives = 0
     limited = False
     for root, dirs, names in os.walk(path, followlinks=False):
@@ -114,6 +118,10 @@ class Workspace:
         self.active = None
         database_path = Path(history_path or uploader.ROOT / 'data/uploads.db')
         self.history = JobHistory(database_path, legacy_path=database_path.with_name('web-history.json'))
+        from utils.upload_drafts import DraftStore
+        from utils.delivery_queue import DeliveryQueue
+        self.saved_drafts=DraftStore(self)
+        self.deliveries=DeliveryQueue(self.history)
         config = uploader.load_config()
         self.security = Security(self.history, password, os.environ.get('DIRTYBYTES_WEB_USERNAME') or config.get('Web', 'USERNAME', fallback='admin'), config.get('Web', 'ALLOWED_IPS', fallback=''))
         if self.security.consume_ini_login(uploader.config_path()):
@@ -163,6 +171,7 @@ class Workspace:
             'has_tpdb_token': bool(config.get('ThePornDB', 'TOKEN', fallback='').strip()),
             'metadata_ignore_words': ignore_words(config),
             'config_file': str(uploader.config_path()),
+            'delivery_mode':config.get('Delivery','MODE',fallback='watch'),
             'config_schema': __import__('utils.web_settings',fromlist=['schema']).schema(config),
             'screenshot_engine': config.get('MediaTools','SCREENSHOT_ENGINE',fallback='ffmpeg'),
             'image_host': image_host.provider(config),
@@ -215,6 +224,10 @@ class Workspace:
                     value = str(data.get(key, '')).strip()
                     if value:
                         config.set('Paths', option, value)
+            if 'delivery_mode' in data:
+                if data['delivery_mode'] not in ('watch','client'):raise ValueError('Choose watch folder or qBittorrent delivery.')
+                if not config.has_section('Delivery'):config.add_section('Delivery')
+                config.set('Delivery','MODE',data['delivery_mode'])
             if 'import_client' in data:
                 identity = str(data['import_client']).strip()
                 if identity and not self.clients._client(identity)['enabled']:
@@ -227,6 +240,9 @@ class Workspace:
                 value = str(data['import_local_root']).strip()
                 effective = uploader.load_config() if os.environ.get('DIRTYBYTES_CONTAINER') == '1' else config
                 config.set('Imports', 'LOCAL_ROOT', str(content_path(value, effective)) if value else effective.get('Paths', 'DATADIR'))
+            if 'delivery_mode' in data and data['delivery_mode']=='client':
+                if not config.get('Imports','CLIENT_ID',fallback=''):raise ValueError('Choose a qBittorrent client before enabling automatic delivery.')
+                remote_root(config.get('Imports','REMOTE_ROOT',fallback=''))
             if not isinstance(data.get('options', {}), dict):
                 raise ValueError('Options must be an object.')
             for key, value in data.get('options', {}).items():
@@ -252,11 +268,11 @@ class Workspace:
 
     def review(self, data, source_torrent=None):
         config = uploader.load_config()
-        path = content_path(str(data.get('source', '')), config)
+        path = content_path(str(data.get('source', '')), config, allow_file=True)
         if path == Path(config.get('Paths', 'DATADIR')).resolve():
             raise ValueError('Choose a release subfolder, not the entire content library.')
         job = uploader.validate_job(path, data.get('category'), str(data.get('description', '')),
-                                    data.get('images', []), data.get('metadata', {}), config, source_torrent=source_torrent)
+                                    data.get('images', []), data.get('metadata', {}), config, source_torrent=source_torrent, prepare_files=False)
         # Inspect symlink targets too: the web UI cannot upload arbitrary host paths.
         root = Path(config.get('Paths', 'DATADIR')).resolve()
         for directory, dirs, files in os.walk(path, followlinks=False):
@@ -296,7 +312,10 @@ class Workspace:
                 raise ValueError('\n'.join(errors))
             uploader.check_writable(config)
             job = draft['job']
-            content_path(job['source'], config)
+            content_path(job['source'], config, allow_file=True)
+            if Path(job['source']).is_file():
+                from utils.single_files import prepare
+                job=dict(job, source=prepare(job['source'],config)['source'])
             if job.get('source_torrent'):
                 from utils.source_torrent import validate
                 validate(job['source_torrent'], job['source'], allowed_root=Path(config.get('Paths', 'DATADIR')))
@@ -320,6 +339,8 @@ class Workspace:
                 self.history.update(identity, clean)
             emit.event = event
             emit.history_managed = True
+            emit.history_store = self.history
+            emit.job_id = identity
             code = None
             error = None
             status = 'needs_review'
@@ -417,6 +438,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.send({'error': 'Please sign in.'}, 401)
         try:
             workspace = self.server.workspace
+            if path == '/api/changelog':
+                from utils.update_check import changelog
+                return self.send(changelog(uploader.ROOT,workspace.updates.data.get('latest_version') if parse_qs(urlparse(self.path).query).get('latest')==['1'] else None))
+            if path == '/api/drafts':
+                rows=workspace.saved_drafts.rows()
+                for row in rows:row['payload']=json.loads(row['payload'])
+                return self.send({'drafts':rows})
+            draft_image=re.fullmatch(r'/api/drafts/([a-f0-9]{32})/images/([a-f0-9]{32})/([A-Za-z0-9_.-]+)',path)
+            if draft_image:return self.send(workspace.saved_drafts.image(*draft_image.groups()),mime='image/jpeg')
+            draft_id=re.fullmatch(r'/api/drafts/([a-f0-9]{32})',path)
+            if draft_id:return self.send(workspace.saved_drafts.get(draft_id[1]))
             if path == '/api/updates':
                 return self.send(workspace.updates.status(uploader.load_config().getboolean('Settings', 'CHECK_UPDATES', fallback=True)))
             if path == '/api/security':
@@ -538,7 +570,7 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('An upload is already running. Follow it in Activity.')
                     if source.is_file():
                         from utils.single_files import prepare
-                        source = Path(prepare(str(source), config)['source'])
+                        source = Path(prepare(str(source), config, create=False)['source'])
                     draft = workspace.review({'source': str(source), 'category': category, 'description': data.get('description', ''), 'metadata': data.get('metadata', {}), 'images': data.get('images', [])})
                     return self.send(workspace.upload(draft['review_id']), 202)
             if path == '/api/category-filters/test':
@@ -592,6 +624,13 @@ class Handler(BaseHTTPRequestHandler):
                     result = workspace.security.update(data, self.client_address[0])
                     workspace.sessions.clear()
                 return self.send(dict(result, sign_in_required=True), cookie='db_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
+            if path == '/api/drafts/save':return self.send(workspace.saved_drafts.save(data))
+            if path == '/api/drafts/delete':return self.send(workspace.saved_drafts.delete(str(data.get('id',''))))
+            if path == '/api/drafts/preview':return self.send(workspace.saved_drafts.preview(str(data.get('id',''))),202)
+            if path == '/api/delivery/retry':
+                job=workspace.history.get(str(data.get('id','')))
+                if not job or job['site_status']!='accepted':raise ValueError('Choose an accepted upload with a confirmed torrent.')
+                return self.send(workspace.deliveries.enqueue(job,uploader.load_config(),job,job['id']) or {'state':'watch','error':'Choose client delivery in Settings first.'})
             if path == '/api/imports/add':
                 return self.send(workspace.imports.add(data), 202)
             if path == '/api/imports/reconcile':
@@ -628,7 +667,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/sources/prepare-file':
                 from utils.single_files import prepare
                 with workspace.lock:
-                    return self.send(prepare(str(data.get('source', '')), uploader.load_config()))
+                    return self.send(prepare(str(data.get('source', '')), uploader.load_config(), create=False))
             if path == '/api/upload':
                 return self.send(workspace.upload(str(data.get('review_id', ''))), 202)
             if path == '/api/logout':
@@ -673,6 +712,7 @@ def serve(host='127.0.0.1', port=6080, open_browser=False, tls_cert=None, tls_ke
     scheme = 'https' if tls_cert else 'http'
     server.workspace.clients.start()
     server.workspace.imports.start()
+    server.workspace.deliveries.start()
     print(f'DirtyBytes Uploader: {scheme}://{host}:{server.server_port}', flush=True)
     if open_browser and host in ('127.0.0.1', 'localhost'):
         import webbrowser

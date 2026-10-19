@@ -110,7 +110,7 @@ def check_writable(config):
             target.unlink(missing_ok=True)
 
 
-def validate_job(source, cat, description='', images=(), metadata=None, config=None, source_torrent=None):
+def validate_job(source, cat, description='', images=(), metadata=None, config=None, source_torrent=None, prepare_files=True):
     if metadata is not None and not isinstance(metadata, dict):
         raise ValueError('Metadata must be an object.')
     config = config or load_config()
@@ -123,10 +123,10 @@ def validate_job(source, cat, description='', images=(), metadata=None, config=N
         validate(source_torrent, path, allowed_root=Path(config.get('Paths', 'DATADIR')))
     if path.is_file():
         from utils.single_files import prepare
-        path = Path(prepare(str(path), config)['source'])
-    if not path.is_dir():
-        raise ValueError('Choose a release folder containing your media, images and optional NFO.')
-    if not any(p.is_file() for p in path.rglob('*')):
+        path = Path(prepare(str(path), config, create=prepare_files)['source'])
+    if not path.is_dir() and not path.is_file():
+        raise ValueError('Choose a release folder or file.')
+    if path.is_dir() and not any(p.is_file() for p in path.rglob('*')):
         raise ValueError('The selected release folder is empty.')
     if cat not in {row['id'] for row in categories()}:
         raise ValueError('Choose a DirtyBytes category.')
@@ -142,7 +142,7 @@ def validate_job(source, cat, description='', images=(), metadata=None, config=N
         raise ValueError('Release year must be between 1900 and 2100.')
     if values.get('runtime_minutes') and (not values['runtime_minutes'].isdigit() or not 1 <= int(values['runtime_minutes']) <= 2000):
         raise ValueError('Runtime must be between 1 and 2000 minutes.')
-    job = {'source': str(path), 'category': cat, 'description': description.strip(),
+    job = {'source': str(path), 'release_name': path.stem if path.is_file() else path.name, 'category': cat, 'description': description.strip(),
            'images': urls, 'metadata': values}
     if source_torrent:job['source_torrent'] = str(Path(source_torrent).resolve(strict=True))
     return job
@@ -219,18 +219,38 @@ def _run_job(job, config, emit):
     try:
         env = dict(os.environ, DIRTYBYTES_CONFIG=str(config_path()),
                    PYTHONIOENCODING='utf-8', DIRTYBYTES_HISTORY_WORKER='1')
+        delivery_events = {}
         with subprocess.Popen(backend_command(job, job_path), cwd=ROOT, env=env,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               encoding='utf-8', errors='replace', bufsize=1) as proc:
             for line in proc.stdout:
                 if line.startswith(EVENT_PREFIX):
                     event = json.loads(line[len(EVENT_PREFIX):])
+                    delivery_events.update(event)
                     handler = getattr(emit, 'event', None)
                     if handler:
                         handler(event)
                 else:
                     emit(line.rstrip())
-            return proc.wait()
+            code = proc.wait()
+        if code == 0 and not job.get('delivery_managed'):
+            handler=getattr(emit,'event',None)
+            if config.get('Delivery','MODE',fallback='watch')=='client':
+                try:
+                    from utils.delivery_queue import DeliveryQueue
+                    from utils.job_history import JobHistory
+                    history=getattr(emit,'history_store',None) or JobHistory(ROOT/'data/uploads.db')
+                    result=DeliveryQueue(history).enqueue(job,config,delivery_events,getattr(emit,'job_id',None))
+                    if handler:handler({'delivery_status':result['state'],'delivery_error':result['error'] or ''})
+                    emit('qBittorrent delivery: '+result['state']+'. '+(result['error'] or 'Confirmed torrent added to the selected client.'))
+                except Exception:
+                    message='Upload accepted; confirmed torrent retained in the watch folder. Could not add it to qBittorrent. Check delivery settings and use Retry client delivery in Activity.'
+                    if handler:handler({'delivery_status':'configuration_error','delivery_error':message})
+                    emit(message)
+            else:
+                if handler:handler({'delivery_status':'watch','delivery_error':''})
+                emit('Delivery: watch folder only. Enable automatic client delivery in Settings to add via qBittorrent API.')
+        return code
     finally:
         job_path.unlink(missing_ok=True)
 
@@ -238,7 +258,7 @@ def _run_job(job, config, emit):
 def fingerprint(path):
     """Include file identity/size/mtime so replacing a file resets the settling timer."""
     rows = []
-    for file in sorted(path.rglob('*')):
+    for file in ([path] if path.is_file() else sorted(path.rglob('*'))):
         if file.is_file():
             st = file.stat()
             rows.append((str(file.relative_to(path)), st.st_size, st.st_mtime_ns))
@@ -374,8 +394,8 @@ def run_backend_cli(arguments):
     if source.is_file():
         from utils.single_files import prepare
         source = Path(prepare(str(source), config)['source'])
-    if not source.is_dir():
-        raise ValueError('Choose a release folder.')
+    if not source.is_dir() and not source.is_file():
+        raise ValueError('Choose a release folder or file.')
     if args.cat is not None and args.cat not in {row['id'] for row in categories()}:
         raise ValueError('Choose a valid category.')
     job.update(source=str(source), category=args.cat)
@@ -442,7 +462,7 @@ def main():
         return 0
     job = validate_job(args.folder, args.cat, args.description, args.image,
                        dict(studio=args.studio, performers=args.performers, content_tags=args.genre,
-                            release_year=args.year, language=args.language), config, source_torrent=args.torrent)
+                            release_year=args.year, language=args.language), config, source_torrent=args.torrent, prepare_files=not args.dry_run)
     print(review_text(job, config))
     if args.dry_run:
         print('\nDry run complete. No network calls, torrent creation or upload.')

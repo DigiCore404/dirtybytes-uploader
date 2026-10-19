@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),asse
 const source=fs.readFileSync(path.join(__dirname,'../webui/app.js'),'utf8');
 const requests=[],nodes=new Map();let refreshes=0;
 const $=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,textContent:'',scrollHeight:0,scrollTop:0,clientHeight:0,classList:{toggle(){}},focus(){},addEventListener(event,fn){this[event]=fn;}});return nodes.get(id);};
-const context=vm.createContext({$,api:()=>new Promise(resolve=>requests.push(resolve)),clearTimeout,setTimeout,refreshActivity:async()=>{refreshes++;},toast:()=>{},renderHashProgress:()=>{},showJobDetails:()=>{},stages:{},statuses:{completed:'Completed',running:'Uploading'}});
+const context=vm.createContext({$,api:()=>new Promise(resolve=>requests.push(resolve)),clearTimeout,setTimeout,refreshActivity:async()=>{refreshes++;},toast:()=>{},renderHashProgress:()=>{},showJobDetails:()=>{},refreshBackNavigation:()=>{},stages:{},statuses:{completed:'Completed',running:'Uploading'}});
 const start=source.indexOf('function closeJobDetails()'),end=source.indexOf("$('history-filter')",start);
 vm.runInContext('let activeJob=null,pollTimer=null,selectedJob=null,jobRequest=0;'+source.slice(start,end),context);
 const run=code=>vm.runInContext(code,context);
@@ -27,3 +27,5 @@ const job=id=>({id,name:id,status:'completed',logs:[],stage:'completed'});
   assert.ok(refreshes>=2);
   console.log('Activity navigation: Back, sidebar reset and late-response races passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+require('./test_back_navigation.cjs');

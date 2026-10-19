@@ -74,6 +74,7 @@ def has_status(directory_path, status):
 
 def update_status(directory_path, new_status):
     """Update the status folders in the directory while preserving the parent folder's timestamps."""
+    if os.path.isfile(directory_path):return
     # Get the folder's original timestamps
     access_time, modification_time = get_folder_timestamps(directory_path)
 

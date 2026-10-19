@@ -44,6 +44,8 @@
   node('update-release-link').href=release.release_url;
   node('update-method').value=release.installation==='docker'?'docker':release.source_type==='git'?'git':'package';
   method();node('update-dialog').showModal();
+  node('update-changelog').textContent='Loading full changelog…';
+  api('/api/changelog?latest=1').then(result=>{node('update-changelog').textContent=(result.notice?result.notice+'\n\n':'')+(result.text||'No changelog was included in this installation.');}).catch(()=>{node('update-changelog').textContent='Could not load the changelog. Open Changelog in the menu or view the GitHub release.';});
  }
  node('update-check').addEventListener('click',()=>{checks=0;refresh(true);});
  node('update-open').addEventListener('click',open);

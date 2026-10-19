@@ -26,7 +26,9 @@ def generate_batch(directory, config, generate_candidate, category_id=None):
     fallback = config.getboolean('Settings', 'SCREENSHOT_SAMPLE_FALLBACK', fallback=True)
     candidates = (main or (samples if fallback else [])) if mode == 'all' else main + (samples if fallback else [])
     if not candidates:
-        print('No eligible video found; screenshots skipped.', flush=True)
+        if config.getboolean('Settings','REQUIRE_SCREENSHOTS',fallback=True):
+            raise RuntimeError('Screenshots are required, but no eligible video was found. Check the selected source and screenshot categories.')
+        print('No eligible video found; screenshots skipped because REQUIRE_SCREENSHOTS is disabled.', flush=True)
         return
     target = Path(config.get('Paths', 'TMP_DIR')) / str(os.getpid()) / 'screens'
     target.mkdir(parents=True, exist_ok=True)
@@ -35,14 +37,14 @@ def generate_batch(directory, config, generate_candidate, category_id=None):
     failures = []
     completed = 0
     for index, source in enumerate(candidates, 1):
-        print(f'Video {index}/{len(candidates)}: {source.relative_to(directory)}', flush=True)
+        print(f'Video {index}/{len(candidates)}: {(Path(source.name) if directory.is_file() else source.relative_to(directory))}', flush=True)
         try:
             # A failed video or MTN retry must never erase another video's previews.
             with tempfile.TemporaryDirectory(prefix='screens-video-', dir=target.parent) as scratch:
                 scratch = Path(scratch)
                 generate_candidate(source, scratch, config)
                 if mode == 'all':
-                    relative = source.relative_to(directory).as_posix()
+                    relative = (Path(source.name) if directory.is_file() else source.relative_to(directory)).as_posix()
                     digest = hashlib.sha256(relative.encode('utf-8')).hexdigest()[:10]
                     label = re.sub(r'[^A-Za-z0-9._-]+', '-', source.stem)[:48].strip('.-') or 'video'
                     prefix = f'{index:04d}-{label}-{digest}-'
@@ -57,7 +59,7 @@ def generate_batch(directory, config, generate_candidate, category_id=None):
             if mode == 'single':
                 return
         except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError):
-            failures.append(source.relative_to(directory).as_posix())
+            failures.append((Path(source.name) if directory.is_file() else source.relative_to(directory)).as_posix())
             print('Screenshot generation failed for ' + source.name + '.', flush=True)
     if failures and (not completed or config.getboolean('Settings', 'REQUIRE_SCREENSHOTS', fallback=True)):
         raise RuntimeError('Screenshots failed for: ' + ', '.join(failures))

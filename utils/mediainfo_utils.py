@@ -20,6 +20,10 @@ def is_sample_path(path):
 
 def iter_media_files(directory):
     """Walk media files using os.walk; this behaves better on rar2fs/FUSE than Path.rglob."""
+    directory=Path(directory)
+    if directory.is_file():
+        if directory.suffix.lower() in MEDIA_EXTENSIONS:yield directory
+        return
     seen_dirs = set()
     for dirpath, dirnames, filenames in os.walk(directory, followlinks=True):
         try:

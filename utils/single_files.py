@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 
-def prepare(value, config):
+def prepare(value, config, create=True):
     root = Path(config.get('Paths', 'DATADIR')).resolve(strict=True)
     source = Path(value).expanduser()
     source = (source if source.is_absolute() else root / source).resolve(strict=True)
@@ -11,6 +11,8 @@ def prepare(value, config):
         raise ValueError('Choose a file inside the content library.')
     if not source.stat().st_size or source.stem in ('', '.', '..'):
         raise ValueError('Choose a nonempty file with a release name.')
+    if not create or not config.getboolean('SingleFiles','CREATE_RELEASE_FOLDER',fallback=True):
+        return {'source':str(source),'original_file':str(source),'release_name':source.stem,'link_mode':'original','created':False}
     mode = config.get('SingleFiles', 'LINK_MODE', fallback='hardlink')
     if mode not in ('hardlink', 'softlink'):
         raise ValueError('Choose Hardlink or Softlink in Settings → Single-file uploads.')

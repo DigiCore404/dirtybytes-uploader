@@ -36,6 +36,10 @@ def log(message, file_path):
 
 def scan_directory(directory):
     """Single walk over the directory: total size in bytes (following symlinks) and first .nfo file."""
+    directory=Path(directory)
+    if directory.is_file():
+        sidecar=directory.with_suffix('.nfo')
+        return directory.stat().st_size, sidecar if sidecar.is_file() else None
     total_size = 0
     nfo_file = None
     for dirpath, dirnames, filenames in os.walk(directory):
@@ -121,7 +125,7 @@ def main():
             fail_exit(tmp_dir, cleanup_enabled)
 
         # Set variables from CLI arguments
-        directory_name = Path(args.directory).name
+        directory_name = Path(args.directory).stem if Path(args.directory).is_file() else Path(args.directory).name
         manual_cat_id = args.cat
 
         print_section("Header", program_version)
@@ -162,14 +166,14 @@ def main():
                 if not original:
                     folder = config.get('Torrent', 'SOURCEFOLDER', fallback='').strip()
                     if not folder:raise ValueError('The original torrent folder is missing. No rehash was started.')
-                    original = Path(folder) / (directory.name + '.torrent')
+                    original = Path(folder) / ((directory.stem if directory.is_file() else directory.name) + '.torrent')
                 validate(original, directory, allowed_root=base_dir)
                 job['source_torrent'] = str(original)
                 rar_source = None  # Reuse preserves the original payload, including archives.
                 config.set('UnrarUpload', 'MODE', 'original_only')
             else:
                 directory, rar_source = prepare_source(directory, log_file_path)
-            directory_name = directory.name
+            directory_name = directory.stem if directory.is_file() else directory.name
         except Exception as exc:
             print(f'Cannot prepare unpacked source: {exc}', flush=True)
             fail_exit(tmp_dir, cleanup_enabled)
@@ -230,6 +234,14 @@ def main():
             print(f"{bcolors.FAIL}Error during login: {str(e)}\n{bcolors.ENDC}")
             fail_exit(tmp_dir, cleanup_enabled, release_dir=directory)
 
+        from utils.publication_identity import resolve_anonymity
+        try:
+            identity=resolve_anonymity(config,auth_headers)
+            config.set('UploadForm','ANONYMOUS',str(identity))
+            print('Upload identity: '+('anonymous' if identity else 'named'),flush=True)
+        except ValueError as exc:
+            print(str(exc),flush=True)
+            fail_exit(tmp_dir,cleanup_enabled,release_dir=directory)
         insert_upload(name=directory_name)
 
         # Create process-specific directory in tmp_dir
@@ -257,7 +269,7 @@ def main():
                         log(f"Error processing .nfo file for duplicate UNRAR upload: {str(e)}", log_file_path)
 
                     try:
-                        unrar_result = {'status': 'skipped', 'reason': 'existing_torrent'} if reuse_torrent else run_unrar_upload(
+                        unrar_result = {'status': 'skipped', 'reason': 'existing_torrent'} if reuse_torrent or directory.is_file() else run_unrar_upload(
                             release_name=directory_name,
                             release_dir=directory,
                             category_name=category_name,
@@ -495,7 +507,7 @@ def main():
                       watch_torrent=upload_result.get('watch_torrent'))
 
             try:
-                unrar_result = {'status': 'skipped', 'reason': 'existing_torrent'} if reuse_torrent else run_unrar_upload(
+                unrar_result = {'status': 'skipped', 'reason': 'existing_torrent'} if reuse_torrent or directory.is_file() else run_unrar_upload(
                     release_name=directory_name,
                     release_dir=directory,
                     category_name=category_name,
