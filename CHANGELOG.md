@@ -1,5 +1,11 @@
 # DirtyBytes Uploader changelog
 
+## 2.7.0 · 2026-10-24
+
+- Add Maximum screenshots per release in Settings → Screenshots & thumbnail sheets and MediaTools.SCREENSHOT_LIMIT for CLI configuration. Set 5 or 10 to stop screenshot generation at that total across the release; 0 (default) preserves unlimited output. Each contact sheet counts as one image.
+- Reduce the final video's frame count to the remaining allowance and skip later videos once the limit is reached. Upload publication continues normally; required-screenshot failures still stop publication. The shared limit also applies to local draft previews and imports. Folder images, metadata covers and manually supplied image URLs are not counted.
+
+
 ## 2.6.1 · 2026-10-19
 
 - Keep the expanded changelog in update instructions readable with a dark background and contrasting text. Upload behaviour is unchanged.

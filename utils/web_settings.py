@@ -13,6 +13,7 @@ HELP={
  'create_release_folder':'On: create a release folder beside a loose file using the selected link mode. Off: upload the original file directly, with no extra folder, link or copy. The posted title excludes its extension. Preview and dry-run never create the folder.',
  'link_mode':'Hardlink: no duplicate data, requires the same filesystem. Softlink: a relative link; the original file must remain available to the uploader and seeding client. The release folder is created beside the original file, which stays in place.',
  'screenshot_video_mode':'Automatic (default): all videos for pack categories, one video for other releases. One video: use the first working main video. All videos: create previews for every main video in the release, including subfolders. Sheet and separate screenshot counts apply to each video. Used by both web and CLI.',
+ 'screenshot_limit':'Maximum screenshot images per release across all selected videos, including contact sheets. Example: 5 or 10; 0 = unlimited. Stops generating screenshots once reached, then continues the upload. Existing folder images, covers and manually entered image URLs are not counted.',
  'screenshot_sheet':'Generate one contact sheet per selected video. Requires the MTN engine.',
  'screenshot_singles':'Number of separate screenshots, in addition to the MTN sheet (0–12). FFmpeg needs at least 1.',
  'mtnwidth':'Width of the generated sheet in pixels (320–7680).',
@@ -53,9 +54,9 @@ HELP={
  'log':'Archive-processing log file.', 'cleanup_log':'Archive-cleanup log file.', 'cleanup_after_qbit_remove':'Allow eligible mount cleanup after removing the linked client torrent.',
  'cleanup_grace_seconds':'Wait this many seconds before eligible archive cleanup.', 'keep_failed_mounts':'Keep a failed archive mount for diagnosis.',
  'regenerate_mediainfo':'Regenerate technical information for extracted media.', 'mount_ready_timeout':'Seconds to wait for a new archive mount to become readable.'}
-LABELS={'anonymity':'Upload identity','create_release_folder':'Create a release folder for single files','uploadimgurl':'Upload API URL','authcode':'Authorization','nsfw':'Mark images as adult','screenshot_video_mode':'Videos to capture','link_mode':'Link mode for single files','mtnwidth':'Sheet width (pixels)','mtnsetting':'MTN grid & layout','mtnpostby':'Sheet footer','mtnfontfile':'MTN font','mtnbin':'MTN executable','screenshot_sheet':'Thumbnail sheet','screenshot_singles':'Separate screenshots','sourcefolder':'Source torrent folder','mkbrr_bin':'mkbrr executable','esource':'Torrent source tag','ecomment':'Torrent comment','include_nfo':'Include folder NFO'}
+LABELS={'anonymity':'Upload identity','create_release_folder':'Create a release folder for single files','uploadimgurl':'Upload API URL','authcode':'Authorization','nsfw':'Mark images as adult','screenshot_video_mode':'Videos to capture','link_mode':'Link mode for single files','mtnwidth':'Sheet width (pixels)','mtnsetting':'MTN grid & layout','mtnpostby':'Sheet footer','mtnfontfile':'MTN font','mtnbin':'MTN executable','screenshot_sheet':'Thumbnail sheet','screenshot_singles':'Separate screenshots','screenshot_limit':'Maximum screenshots per release','sourcefolder':'Source torrent folder','mkbrr_bin':'mkbrr executable','esource':'Torrent source tag','ecomment':'Torrent comment','include_nfo':'Include folder NFO'}
 BOOL={'true','false'}
-RANGES={'screenshot_singles':(0,12),'mtnwidth':(320,7680),'timeout':(1,600),'torrentdownloadretries':(1,100),'torrentdownloadretrydelay':(0,300),'freeleech':(0,1),'anonymous':(0,1),'ratio_target':(0,1000),'cleanup_grace_seconds':(0,86400),'mount_ready_timeout':(1,600)}
+RANGES={'screenshot_limit':(0,10000),'screenshot_singles':(0,12),'mtnwidth':(320,7680),'timeout':(1,600),'torrentdownloadretries':(1,100),'torrentdownloadretrydelay':(0,300),'freeleech':(0,1),'anonymous':(0,1),'ratio_target':(0,1000),'cleanup_grace_seconds':(0,86400),'mount_ready_timeout':(1,600)}
 def defaults():
  c=configparser.ConfigParser(interpolation=None);c.read(ROOT/'defaults.ini',encoding='utf-8');return c
 
@@ -106,6 +107,7 @@ def apply(config,changes):
     except ValueError:raise ValueError(field['label']+' needs a number.')
     low,high=field['range'] or (0,1000000)
     if not low<=number<=high or key!='ratio_target' and not number.is_integer():raise ValueError(field['label']+f' must be between {low} and {high}.')
+    if key=='screenshot_limit':text=str(int(number))
    if (key.endswith('_categories') or key=='categories') and text:
     if not re.fullmatch(r'\d+(\s*,\s*\d+)*',text):raise ValueError('Categories must be comma-separated IDs.')
    if key.endswith('url') and text:

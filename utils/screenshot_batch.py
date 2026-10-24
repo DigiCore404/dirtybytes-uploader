@@ -1,4 +1,5 @@
 """Select one representative video or generate isolated previews for every video."""
+import copy
 import hashlib
 import json
 import os
@@ -11,6 +12,9 @@ from utils.mediainfo_utils import iter_media_files, media_priority, is_sample_pa
 
 
 def generate_batch(directory, config, generate_candidate, category_id=None):
+    limit = config.getint('MediaTools', 'SCREENSHOT_LIMIT', fallback=0)
+    if not 0 <= limit <= 10000:
+        raise ValueError('MediaTools.SCREENSHOT_LIMIT must be between 0 and 10000 (0 = unlimited).')
     directory = Path(directory)
     mode = config.get('MediaTools', 'SCREENSHOT_VIDEO_MODE', fallback='auto').strip().lower()
     if mode not in ('auto', 'single', 'all'):
@@ -36,13 +40,30 @@ def generate_batch(directory, config, generate_candidate, category_id=None):
         image.unlink()
     failures = []
     completed = 0
+    produced = 0
     for index, source in enumerate(candidates, 1):
         print(f'Video {index}/{len(candidates)}: {(Path(source.name) if directory.is_file() else source.relative_to(directory))}', flush=True)
         try:
             # A failed video or MTN retry must never erase another video's previews.
             with tempfile.TemporaryDirectory(prefix='screens-video-', dir=target.parent) as scratch:
                 scratch = Path(scratch)
-                generate_candidate(source, scratch, config)
+                candidate_config = config
+                if limit:
+                    remaining = limit - produced
+                    candidate_config = copy.deepcopy(config)
+                    engine = config.get('MediaTools', 'SCREENSHOT_ENGINE', fallback='ffmpeg').strip().lower()
+                    sheet = engine == 'mtn' and config.getboolean('MediaTools', 'SCREENSHOT_SHEET', fallback=True)
+                    singles = config.getint('MediaTools', 'SCREENSHOT_SINGLES', fallback=5)
+                    singles = min(12, max(0 if engine == 'mtn' else 1, singles))
+                    candidate_config.set('MediaTools', 'SCREENSHOT_SINGLES', str(min(singles, remaining - int(sheet))))
+                generate_candidate(source, scratch, candidate_config)
+                images = sorted(scratch.glob('*.jpg'))
+                if limit:
+                    # Keep a requested sheet first; it counts as one output image.
+                    images.sort(key=lambda image: (not image.name.endswith('-sheet.jpg'), image.name))
+                    images = images[:limit - produced]
+                if not images:
+                    raise RuntimeError('No screenshots were generated.')
                 if mode == 'all':
                     relative = (Path(source.name) if directory.is_file() else source.relative_to(directory)).as_posix()
                     digest = hashlib.sha256(relative.encode('utf-8')).hexdigest()[:10]
@@ -50,14 +71,19 @@ def generate_batch(directory, config, generate_candidate, category_id=None):
                     prefix = f'{index:04d}-{label}-{digest}-'
                 else:
                     prefix = ''
-                for image in sorted(scratch.glob('*.jpg')):
+                for image in images:
                     # Short, unique names also distinguish identical stems in subfolders.
                     suffix = re.sub(r'[^A-Za-z0-9._-]+', '-', image.name)[-100:]
                     name = prefix + suffix if prefix else image.name
                     image.replace(target / name)
+            produced += len(images)
             completed += 1
+            if limit and produced >= limit:
+                print(f'Screenshot limit reached: {produced}/{limit}; remaining videos skipped.', flush=True)
             if mode == 'single':
                 return
+            if limit and produced >= limit:
+                break
         except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError):
             failures.append((Path(source.name) if directory.is_file() else source.relative_to(directory)).as_posix())
             print('Screenshot generation failed for ' + source.name + '.', flush=True)

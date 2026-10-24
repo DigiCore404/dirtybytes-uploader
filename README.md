@@ -37,7 +37,16 @@ SCREENSHOT_VIDEO_MODE = auto
 SCREENSHOT_ENGINE = mtn
 SCREENSHOT_SHEET = true
 SCREENSHOT_SINGLES = 3
+SCREENSHOT_LIMIT = 0
 ```
+
+Set **Maximum screenshots per release** to **5** or **10** to cap the total
+across the release. The equivalent CLI setting is `SCREENSHOT_LIMIT = 5` (or
+`10`); `0` means unlimited and keeps the existing behaviour. Each contact sheet
+counts as one image. The final video's separate frame count is reduced to fit,
+and later videos are skipped once the limit is reached. The upload continues.
+This also applies to imports and local draft previews. Folder images, metadata
+covers and manually entered image URLs are outside this limit.
 
 For packs, this creates one sheet and three separate screenshots per video;
 other release categories use one video. With required
