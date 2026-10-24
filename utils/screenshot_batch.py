@@ -62,8 +62,6 @@ def generate_batch(directory, config, generate_candidate, category_id=None):
                     # Keep a requested sheet first; it counts as one output image.
                     images.sort(key=lambda image: (not image.name.endswith('-sheet.jpg'), image.name))
                     images = images[:limit - produced]
-                if not images:
-                    raise RuntimeError('No screenshots were generated.')
                 if mode == 'all':
                     relative = (Path(source.name) if directory.is_file() else source.relative_to(directory)).as_posix()
                     digest = hashlib.sha256(relative.encode('utf-8')).hexdigest()[:10]
