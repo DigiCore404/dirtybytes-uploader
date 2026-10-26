@@ -234,6 +234,11 @@ def get_root_dir():
 
 def create_torrent(directory,temp_dir,edit,hasher,total_size_bytes=None,exclude_globs=(),exclude_regexs=(),source_torrent=None):
     from utils.runtime_tools import find_tool
+    from utils.torrent_exclusions import patterns, check_source, matches
+    exclude_globs=tuple(exclude_globs)+tuple(patterns(config))
+    if (source_torrent or edit) and (exclude_globs or exclude_regexs):
+        raise ValueError('Reusing an existing torrent cannot exclude payload files. No rehash was started.')
+    check_source(directory,exclude_globs)
     directory=Path(directory).resolve();temp_dir=Path(temp_dir);temp_dir.mkdir(parents=True,exist_ok=True)
     binary=find_tool('mkbrr',config)
     if not binary:raise RuntimeError('mkbrr is missing. Configure Torrent.MKBRR_BIN or reinstall the package.')
@@ -261,6 +266,12 @@ def create_torrent(directory,temp_dir,edit,hasher,total_size_bytes=None,exclude_
     else:
         command=[binary,'create',str(directory),'--output',str(output),*common]
         for pattern in exclude_globs:command+=['--exclude',str(pattern)]
+        # Explicit matched paths also cover uppercase extensions on Linux.
+        if exclude_globs and directory.is_dir():
+            import glob
+            for path in directory.rglob('*'):
+                if path.is_file() and matches(path.relative_to(directory).as_posix(),exclude_globs):
+                    command+=['--exclude',glob.escape(path.relative_to(directory).as_posix())]
         if exclude_regexs:
             import glob
             patterns=[re.compile(pattern) for pattern in exclude_regexs]
@@ -289,6 +300,8 @@ def create_torrent(directory,temp_dir,edit,hasher,total_size_bytes=None,exclude_
         metainfo,_=decode(output.read_bytes());metainfo[b'created by']=creator.encode('utf-8')
         output.write_bytes(encode(metainfo))
     metadata=Torrent.read(output)
+    if exclude_globs and any(matches(Path(*p.parts[1:]).as_posix() if len(p.parts)>1 else p.name,exclude_globs) for p in metadata.files):
+        raise RuntimeError('Torrent still contains excluded files. Upload stopped; source files were preserved.')
     if imported and (metadata.metainfo['info']['pieces']!=imported.metainfo['info']['pieces'] or metadata.piece_size!=imported.piece_size or metadata.file_sizes!=imported.file_sizes or
                      [p.parts[1:] if len(p.parts)>1 else (p.name,) for p in metadata.files] != [p.parts[1:] if len(p.parts)>1 else (p.name,) for p in imported.files]):
         raise RuntimeError('Edited torrent changed its piece hashes or payload layout. Upload stopped.')

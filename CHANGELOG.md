@@ -1,5 +1,13 @@
 # DirtyBytes Uploader changelog
 
+## 2.8.0 · 2026-10-26
+
+- Add editable torrent exclusions in Settings and config.ini, for example `*.nfo, *.txt`. Patterns apply recursively and case-insensitively. Original files stay untouched; excluding every file stops the upload.
+- Keep existing-torrent reuse strictly without rehashing. Reuse stops when exclusions are configured because removing payload files would invalidate the original pieces.
+- Upload selected lookup images to the configured image host before applying metadata. Signed or extensionless ThePornDB links are downloaded as images and replaced with confirmed image-host URLs; failures leave upload fields unchanged.
+- Add BLVCKOUT movie lookup with a separate, masked API key, connection test, search and detail preview in both uploaders. A valid BLVCKOUT read key is required. DigitalCore only uses its supported metadata fields.
+- Limit and deduplicate metadata genres/tags to 12 before publication, including ThePornDB results, to avoid tracker validation errors.
+
 ## 2.7.0 · 2026-10-24
 
 - Add Maximum screenshots per release in Settings → Screenshots & thumbnail sheets and MediaTools.SCREENSHOT_LIMIT for CLI configuration. Set 5 or 10 to stop screenshot generation at that total across the release; 0 (default) preserves unlimited output. Each contact sheet counts as one image.

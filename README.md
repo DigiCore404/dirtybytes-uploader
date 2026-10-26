@@ -305,3 +305,23 @@ In **Settings → Folders & seeding**, choose watch-folder delivery or automatic
 Choose **Account preference**, **Anonymous** or **Named** under Upload behaviour. Account preference reads your site's upload privacy setting and stops safely if it cannot be read. Older explicit anonymous configurations retain their privacy until you save a new choice. Required screenshot failures stop publication rather than silently omitting the images.
 
 Use **Changelog** in the sidebar for the full change history. Update instructions include the changelog for a newer stable release when available, with the installed history as a fallback.
+
+
+### Exclude files from new torrents
+
+In **Settings → Torrent creation & editing → Exclude patterns**, enter `*.nfo, *.txt` (or other comma-separated globs). CLI uploads use the same setting:
+
+```ini
+[Torrent]
+EXCLUDE_PATTERNS = *.nfo, *.txt
+```
+
+Filename patterns apply to all subfolders and ignore letter case. Use a relative pattern such as `Sample/*.jpg` to restrict a folder. Files remain on disk and can still be used for seeding other torrents. Only the new torrent payload changes. An empty setting preserves the complete payload; excluding every file stops the upload. Reusing an existing torrent with exclusions configured stops without hashing: clear the setting to preserve the original torrent, or explicitly choose a new torrent creation workflow.
+
+**Include folder NFO** is a separate description setting. Disable it as well if the NFO text should not appear in the site description.
+
+### BLVCKOUT and lookup images
+
+Add your **BLVCKOUT API key** under **Settings → Metadata providers**, use **Test BLVCKOUT**, and select **BLVCKOUT** in the metadata helper. Obtain a read key from [your BLVCKOUT account](https://blvckout.foo/account). Searches and keys are sent only to its documented API; the saved key is never returned to the browser. See [API documentation](https://blvckout.foo/api-docs).
+
+When you choose **Use metadata**, selected images are first downloaded and uploaded to your configured image host. The resulting direct image URLs are used for the post and cover. A signed or extensionless source URL is never fixed by appending `.jpg`. If rehosting fails, the upload fields remain unchanged and an error is shown. Metadata genres/tags are deduplicated and limited to 12.

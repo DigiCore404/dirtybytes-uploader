@@ -1,5 +1,5 @@
 """Read-only ThePornDB metadata; token is sent only to the fixed API origin."""
-from utils.metadata_text import plain_description
+from utils.metadata_text import plain_description, bounded_names
 import re
 from urllib.parse import urlsplit
 import requests
@@ -52,7 +52,7 @@ def normalize(row, kind):
             'title': str(row.get('title') or '')[:500], 'date': date[:10],
             'description': plain_description(str(row.get('description') or '')[:30000]), 'images': images,
             'metadata': {'studio': str(site.get('name') or '')[:1000],
-                         'performers': names(row.get('performers')), 'content_tags': names(row.get('tags')),
+                         'performers': names(row.get('performers')), 'content_tags': bounded_names(names(row.get('tags'))),
                          'release_year': date[:4] if re.match(r'^(19|20)\d\d', date) else ''}}
 
 def search(token, query, kind='scenes'):

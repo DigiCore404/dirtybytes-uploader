@@ -27,6 +27,7 @@ jobs:
       - name: Test backend and bundled media tools
         run: |
           docker run --rm --user 1000:1000 --tmpfs /app/data:uid=1000,gid=1000 --tmpfs /app/tmp:uid=1000,gid=1000 --tmpfs /app/dist:uid=1000,gid=1000 --entrypoint python dirtybytes-test -m unittest discover -s tests -v
+          node tests/test_metadata_rehost.cjs
           node tests/test_search_name.cjs
           node tests/test_catalogue.cjs
           node tests/test_catalogue_combine.cjs

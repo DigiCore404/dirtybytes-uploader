@@ -9,7 +9,7 @@ from utils.app_version import NAME, SLUG
 from utils.web_settings import apply
 
 TEST_IMAGE = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNoaGgAAAMEAYFL09IQAAAAAElFTkSuQmCC')
-FIELDS = {'api_key': ('Website', 'API_KEY'), 'image_host_key': ('ImageHost', 'API_KEY'),
+FIELDS = {'blvckout_key':('BLVCKOUT','API_KEY'), 'api_key': ('Website', 'API_KEY'), 'image_host_key': ('ImageHost', 'API_KEY'),
           'tpdb_token': ('ThePornDB', 'TOKEN'), 'tmdb_token': ('TMDB', 'TOKEN'),
           'igdb_client_id': ('IGDB', 'CLIENT_ID'), 'igdb_client_secret': ('IGDB', 'CLIENT_SECRET')}
 
@@ -20,7 +20,7 @@ class CheckError(ValueError):
 
 def check(saved, data):
     target = str(data.get('target', ''))
-    supported = {'site', 'image_host'} | ({'tmdb', 'igdb', 'tvmaze'} if SLUG == 'digitalcore-uploader' else {'tpdb'})
+    supported = {'site', 'image_host', 'blvckout'} | ({'tmdb', 'igdb', 'tvmaze'} if SLUG == 'digitalcore-uploader' else {'tpdb'})
     if target not in supported:
         raise ValueError('Choose a supported API to test.')
     config = copy.deepcopy(saved)
@@ -70,6 +70,12 @@ def check(saved, data):
         elif target == 'image_host':
             image_host.upload(config, 'uploader-connection-test.png', TEST_IMAGE)
             message = 'Image host works: a small test image was uploaded successfully.'
+        elif target == 'blvckout':
+            from utils import blvckout
+            result=blvckout.request(config.get('BLVCKOUT','API_KEY',fallback=''),'/me')
+            if not isinstance(result,dict) or not result:
+                raise CheckError('BLVCKOUT returned an unexpected response.')
+            message='BLVCKOUT connected. The API key was accepted.'
         elif target == 'tpdb':
             module = importlib.import_module('utils.tpdb')
             result = module.request(config.get('ThePornDB', 'TOKEN', fallback=''), '/scenes', {'limit': 1})
@@ -103,6 +109,8 @@ def check(saved, data):
         return {'ok': False, 'message': str(exc)}
     except (ValueError, TypeError, KeyError) as exc:
         safe = {
+            'Add your BLVCKOUT API key in Settings first.',
+            'BLVCKOUT rejected this key. Check its expiry and read permissions in Settings.',
             'Add your ThePornDB API token in Settings first.',
             'ThePornDB rejected this token. Check it in Settings.',
             'Add your TMDB API read access token in Settings first.',

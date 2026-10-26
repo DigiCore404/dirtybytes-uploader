@@ -175,6 +175,7 @@ class Workspace:
             'config_schema': __import__('utils.web_settings',fromlist=['schema']).schema(config),
             'screenshot_engine': config.get('MediaTools','SCREENSHOT_ENGINE',fallback='ffmpeg'),
             'image_host': image_host.provider(config),
+            'has_blvckout_key': bool(config.get('BLVCKOUT','API_KEY',fallback='').strip()),
             'has_image_host_key': bool(config.get('ImageHost', 'API_KEY', fallback='').strip()),
             'import_remote_root': config.get('Imports', 'REMOTE_ROOT', fallback=''),
             'import_local_root': config.get('Imports', 'LOCAL_ROOT', fallback='').strip() or config.get('Paths', 'DATADIR'),
@@ -193,10 +194,10 @@ class Workspace:
             config = configparser.ConfigParser(interpolation=None)
             config.read(uploader.config_path(), encoding='utf-8')
             config.remove_section('PussyTorrents')
-            for section in ('Website', 'Torrent', 'Paths', 'Settings', 'ThePornDB', 'ImageHost', 'Imports', 'MediaTools'):
+            for section in ('Website', 'Torrent', 'Paths', 'Settings', 'ThePornDB', 'ImageHost', 'Imports', 'MediaTools', 'BLVCKOUT'):
                 if not config.has_section(section):
                     config.add_section(section)
-            for key, section, option in (('api_key', 'Website', 'API_KEY'), ('announce', 'Torrent', 'ANNOUNCEURL'), ('tpdb_token', 'ThePornDB', 'TOKEN'), ('image_host_key', 'ImageHost', 'API_KEY')):
+            for key, section, option in (('blvckout_key','BLVCKOUT','API_KEY'), ('api_key', 'Website', 'API_KEY'), ('announce', 'Torrent', 'ANNOUNCEURL'), ('tpdb_token', 'ThePornDB', 'TOKEN'), ('image_host_key', 'ImageHost', 'API_KEY')):
                 value = str(data.get(key, '')).strip()
                 if value:
                     if '\n' in value or '\r' in value:
@@ -649,6 +650,12 @@ class Handler(BaseHTTPRequestHandler):
                 if path.endswith('/search'):
                     return self.send({'results': tpdb.search(token, str(data.get('query', '')), kind)})
                 return self.send(tpdb.detail(token, str(data.get('id', '')), kind))
+            if path in ('/api/blvckout/search','/api/blvckout/detail'):
+                from utils import blvckout
+                token=uploader.load_config().get('BLVCKOUT','API_KEY',fallback='').strip()
+                if path.endswith('/search'):
+                    return self.send({'results':blvckout.search(token,str(data.get('query','')))})
+                return self.send(blvckout.detail(token,str(data.get('id',''))))
             if path == '/api/settings':
                 return self.send(workspace.settings(data))
             if path == '/api/delivery/check':

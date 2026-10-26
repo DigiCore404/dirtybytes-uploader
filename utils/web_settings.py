@@ -4,11 +4,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 ROOT=Path(__file__).resolve().parents[1]
 DEDICATED={('Website','api_key'),('Torrent','announceurl'),('Torrent','hasher'),('Paths','datadir'),('Paths','watchfolder'),('ImageHost','provider'),('ImageHost','api_key'),('ThePornDB','token'),('Metadata','search_ignore_words'),('MediaTools','screenshot_engine')}
+DEDICATED.add(('BLVCKOUT','api_key'))
 DEDICATED.add(('UploadForm','anonymous'))
 DEDICATED.add(('Delivery','mode'))
 DEDICATED|={('Settings',k) for k in ('image_upload','screenshots','mediainfo','dupecheck')}
 TITLES={'MediaTools':'Screenshots & thumbnail sheets','Torrent':'Torrent creation & editing','Settings':'Upload behaviour','UploadForm':'DirtyBytes publication','Paths':'Files & folders','ImageHost':'Custom image host','Network':'Network & retries','UnrarUpload':'Archive handling (UNRAR / rar2fs)','Website':'DirtyBytes site','SingleFiles':'Single-file uploads'}
 HELP={
+ 'exclude_patterns':'Files to omit from NEW torrents, for example *.nfo, *.txt or Sample/*.jpg (comma-separated, case-insensitive; filename patterns apply in all subfolders). Source files are never deleted. Existing-torrent reuse cannot remove files and stops without rehashing when exclusions are configured. This is separate from including NFO text in the description.',
  'check_updates':'Check for new stable releases in the web interface. Only the public uploader repository is queried; no configuration or credentials are sent.',
  'create_release_folder':'On: create a release folder beside a loose file using the selected link mode. Off: upload the original file directly, with no extra folder, link or copy. The posted title excludes its extension. Preview and dry-run never create the folder.',
  'link_mode':'Hardlink: no duplicate data, requires the same filesystem. Softlink: a relative link; the original file must remain available to the uploader and seeding client. The release folder is created beside the original file, which stays in place.',
@@ -114,5 +116,8 @@ def apply(config,changes):
     parsed=urlparse(text)
     if parsed.scheme not in ('http','https') or not parsed.hostname or parsed.username:raise ValueError('Enter a complete HTTP(S) URL.')
    if key=='mode' and text not in ('unpacked_only','original_only'):raise ValueError('Choose unpacked_only or original_only.')
+   if section=='Torrent' and key=='exclude_patterns':
+    from utils.torrent_exclusions import patterns
+    trial=configparser.ConfigParser(interpolation=None);trial.add_section('Torrent');trial.set('Torrent','EXCLUDE_PATTERNS',text);patterns(trial)
    config.set(section,key,text)
    if section=='UploadForm' and key=='anonymity':config.set(section,'anonymous','0')

@@ -18,6 +18,36 @@ import web
 
 class WebTests(unittest.TestCase):
 
+    def test_blvckout_secret_and_lookup_require_login_and_csrf(self):
+        from utils import blvckout
+        self.assertEqual(self.post('/api/blvckout/search',{'query':'Example'}).status_code,401)
+        self.login()
+        self.assertEqual(self.post('/api/settings',{'blvckout_key':'private-blvckout-test'}).status_code,200)
+        state=self.client.get(self.base+'/api/state').json()
+        self.assertTrue(state['settings']['has_blvckout_key'])
+        self.assertNotIn('private-blvckout-test',json.dumps(state))
+        self.assertEqual(self.post('/api/settings',{'blvckout_key':''}).status_code,200)
+        with patch.object(blvckout,'search',return_value=[]) as search:
+            response=self.post('/api/blvckout/search',{'query':'Example'})
+            self.assertEqual(response.status_code,200,response.text)
+            search.assert_called_once_with('private-blvckout-test','Example')
+            token=self.csrf;self.csrf='invalid'
+            self.assertEqual(self.post('/api/blvckout/search',{'query':'Example'}).status_code,403)
+            self.csrf=token
+
+    def test_metadata_rehosting_passes_real_image_bytes_to_configured_host(self):
+        self.login()
+        raw=b'\xff\xd8\xffJPEG-fixture'
+        original='https://thumb.theporndb.net/signature/800x1200/smart/scene%2Fposter'
+        with patch.object(web,'public_download',return_value=(raw,'image/jpeg',original)) as download,patch.object(web.image_host,'upload',return_value={'url':'https://images.example/cover.jpg','provider':'test'}) as upload:
+            response=self.post('/api/images/rehost',{'url':original})
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertEqual(response.json()['url'],'https://images.example/cover.jpg')
+            download.assert_called_once_with(original,limit=web.image_host.MAX_IMAGE)
+            self.assertEqual(upload.call_args.args[2],raw)
+            self.assertNotEqual(response.json()['url'],original+'.jpg')
+
+
     def test_removal_rule_management_requires_session_and_csrf(self):
         self.assertEqual(self.client.get(self.base+'/api/clients/cleanup-rules').status_code,401)
         self.assertEqual(self.post('/api/clients/cleanup-policy',{}).status_code,401)

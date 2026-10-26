@@ -33,3 +33,12 @@ def plain_description(value):
     text=re.sub(r'[ \t\r\f\v]+',' ',text)
     text='\n'.join(line.strip() for line in text.split('\n'))
     return re.sub(r'\n{3,}','\n\n',text).strip()[:30000]
+
+
+def bounded_names(value, limit=12):
+    result=[];seen=set()
+    for name in re.split(r'[,;]+',str(value or '')):
+        name=name.strip()
+        if name and name.casefold() not in seen:
+            result.append(name);seen.add(name.casefold())
+    return ', '.join(result[:limit])
