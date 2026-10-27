@@ -45,6 +45,8 @@ class JobHistory:
                 if name not in columns:db.execute(f'ALTER TABLE upload_jobs ADD COLUMN {name} {kind}')
             for name in ('delivery_status','delivery_error'):
                 if name not in columns:db.execute(f'ALTER TABLE upload_jobs ADD COLUMN {name} TEXT')
+            for name in ('payload_json','retry_of','retry_id','failure_stage'):
+                if name not in columns:db.execute(f'ALTER TABLE upload_jobs ADD COLUMN {name} TEXT')
             if 'torrent_hash' not in {row[1] for row in db.execute('PRAGMA table_info(upload_jobs)')}:
                 db.execute('ALTER TABLE upload_jobs ADD COLUMN torrent_hash TEXT')
         if __import__('os').name != 'nt':
@@ -99,7 +101,7 @@ class JobHistory:
             rows = db.execute("SELECT id, site_status FROM upload_jobs WHERE status='running'").fetchall()
             for row in rows:
                 message = 'The worker stopped before completion. Check DirtyBytes before retrying.'
-                db.execute("UPDATE upload_jobs SET status='interrupted', stage='interrupted', finished=?, error=? WHERE id=?",
+                db.execute("UPDATE upload_jobs SET failure_stage=stage, status='interrupted', stage='interrupted', finished=?, error=? WHERE id=?",
                            (time.time(), message, row['id']))
                 self._event(db, row['id'], 'interrupted', 'interrupted', {'site_status': row['site_status'], 'error': message})
         return len(rows)
@@ -113,6 +115,11 @@ class JobHistory:
                 (identity, job.get('post_title') or job.get('release_name') or (Path(job['source']).stem if Path(job['source']).is_file() else Path(job['source']).name), job['source'], job['category'], now,
                  job.get('description', ''), json.dumps(job.get('metadata', {}), ensure_ascii=False),
                  json.dumps(job.get('images', []), ensure_ascii=False)))
+            payload={key:job[key] for key in ('source','category','description','metadata','images','post_title','release_name','source_torrent','delivery_managed') if key in job}
+            db.execute('UPDATE upload_jobs SET payload_json=?,retry_of=? WHERE id=?',(json.dumps(payload,ensure_ascii=False),job.get('retry_of'),identity))
+            if job.get('retry_of'):
+                changed=db.execute('UPDATE upload_jobs SET retry_id=? WHERE id=? AND retry_id IS NULL',(identity,job['retry_of'])).rowcount
+                if changed!=1:raise ValueError('This attempt already has a retry. Open the newer attempt in Activity.')
             self._event(db, identity, 'running', 'starting', {})
 
     def append_log(self, identity, line):
@@ -135,14 +142,19 @@ class JobHistory:
         if status not in STATUSES or status == 'running':
             raise ValueError('Invalid final upload status.')
         with self.connect() as db:
+            previous=db.execute('SELECT stage,failure_stage FROM upload_jobs WHERE id=?',(identity,)).fetchone()
+            phase=previous['stage'] if previous else None
+            if phase in STATUSES:phase=previous['failure_stage']
+            if status not in ('needs_review','interrupted'):phase=None
             db.execute('''UPDATE upload_jobs SET status=?, stage=?, finished=?, exit_code=?,
-                       error=COALESCE(?, error) WHERE id=?''', (status, status, time.time(), code, error, identity))
-            self._event(db, identity, status, status, {'exit_code': code, 'error': error})
+                       error=COALESCE(?, error),failure_stage=? WHERE id=?''', (status, status, time.time(), code, error, phase, identity))
+            self._event(db, identity, status, status, {'exit_code': code, 'error': error,'failure_stage':phase})
 
     def _record(self, row):
         if row is None:
             return None
         record = dict(row)
+        record['retry_payload']=json.loads(record.pop('payload_json') or 'null')
         record['metadata'] = json.loads(record.pop('metadata_json'))
         record['images'] = json.loads(record.pop('images_json'))
         return record

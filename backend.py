@@ -69,9 +69,13 @@ def cleanup_tmp_dir(directory, cleanup_enabled):
         except Exception as e:
             print(f"Error during cleanup: {str(e)}{bcolors.ENDC}")
 
-def fail_exit(directory, cleanup_enabled, release_dir=None):
+def fail_exit(directory, cleanup_enabled, release_dir=None, reason=None):
     """Clean up tmp and exit non-zero. If release_dir is given, mark it .failed
     so its status doesn't stay stuck on 'uploading'."""
+    active_error=sys.exc_info()[1]
+    if reason is None and isinstance(active_error,Exception):reason=str(active_error) or type(active_error).__name__
+    if reason is None and isinstance(active_error,KeyboardInterrupt):reason='Upload interrupted by the user.'
+    job_event(error=str(reason or 'Upload stopped. See the saved log for details.')[:8000])
     if release_dir is not None:
         try:
             update_status(release_dir, 'failed')
@@ -101,6 +105,8 @@ def main():
 
     # Load configuration
     config = ConfigLoader().get_config()
+    if job.get('retry_of'):config.set('Settings','DUPECHECK','true')
+    job_event(stage='preparing')
 
     # Join tmp and running process's PID to generate a unique directory
     tmp_dir = Path(config.get('Paths', 'TMP_DIR')) / str(os.getpid())
@@ -139,7 +145,7 @@ def main():
         if not base_dir:
             log("DATADIR not found in config.", log_file_path)
             print(f"{bcolors.ENDC}{bcolors.FAIL}DATADIR not found in config.\n{bcolors.ENDC}")
-            fail_exit(tmp_dir, cleanup_enabled)
+            fail_exit(tmp_dir, cleanup_enabled, reason='The content folder is not configured (Paths.DATADIR).')
         else:
             # It exists, path it
             base_dir = Path(base_dir)
@@ -152,12 +158,12 @@ def main():
         if not directory.exists():
             log(f"The provided directory does not exist: {directory}", log_file_path)
             print(f"{bcolors.ENDC}{bcolors.FAIL}Directory does not exist: {directory}\n{bcolors.ENDC}")
-            fail_exit(tmp_dir, cleanup_enabled)
+            fail_exit(tmp_dir, cleanup_enabled, reason='The release folder or file no longer exists.')
 
         if hasher != 'mkbrr':
             log(f"Unknown hasher: {hasher}", log_file_path)
             print(f"{bcolors.ENDC}{bcolors.FAIL}Unknown hasher: {hasher}\n{bcolors.ENDC}")
-            fail_exit(tmp_dir, cleanup_enabled)
+            fail_exit(tmp_dir, cleanup_enabled, reason='Unsupported torrent engine. Select mkbrr in Settings.')
 
         original_release_name = directory_name
         try:
@@ -228,7 +234,7 @@ def main():
             if not auth_headers:
                 log_to_file(log_file_path, "Login failed. Cannot proceed with the script.")
                 print(f"{bcolors.RED}Login failed. Cannot proceed with the script.\n{bcolors.ENDC}")
-                fail_exit(tmp_dir, cleanup_enabled, release_dir=directory)
+                fail_exit(tmp_dir, cleanup_enabled, release_dir=directory, reason='Site login failed. Check the site API key and connection.')
             else:
                 print(f"{bcolors.OKGREEN}Login successful. Proceeding...\n{bcolors.ENDC}")
         except Exception as e:
@@ -256,7 +262,7 @@ def main():
                 job_event(stage='duplicate_check')
                 print_section("Dupe checking")
                 # Passing auth_headers instead of cookies
-                duplicate_found = check_and_download_dupe(directory_name, auth_headers)
+                duplicate_found = check_and_download_dupe((job.get('post_title') or directory_name) if job.get('retry_of') else directory_name, auth_headers)
                 if duplicate_found:
                     job_event(stage='duplicate', site_status='duplicate')
                     log("Duplicate found. Skipping further operations.", log_file_path)

@@ -18,6 +18,136 @@ import web
 
 class WebTests(unittest.TestCase):
 
+    def test_failure_reason_phase_and_redaction_survive_retry_and_restart(self):
+        from utils import upload_retry
+        from utils.job_history import JobHistory
+        self.login();self.post('/api/settings',{'blvckout_key':'private-retry-fixture'})
+        identity,job=self.make_retry_job()
+        def failed(job,config,emit):
+            emit.event({'stage':'screenshots'})
+            emit.event({'error':'FFmpeg exited with code 1; private-retry-fixture'})
+            return 1
+        with patch.object(upload_retry,'get_site',return_value=[]),patch.object(uploader,'check_config',return_value=[]),patch.object(uploader,'check_writable'),patch.object(uploader,'run_job',side_effect=failed):
+            response=self.post('/api/uploads/retry',{'id':identity});self.assertEqual(response.status_code,200,response.text)
+            child=response.json()['id']
+            for _ in range(100):
+                if not self.server.workspace.active:break
+                time.sleep(.01)
+        saved=JobHistory(self.server.workspace.history.path).get(child)
+        self.assertEqual(saved['failure_stage'],'screenshots')
+        self.assertIn('FFmpeg exited with code 1',saved['error'])
+        self.assertNotIn('private-retry-fixture',json.dumps(saved));self.assertIn('[redacted]',saved['error'])
+        self.assertEqual(saved['retry_payload']['description'],job['description'])
+        self.assertEqual(self.server.workspace.history.get(identity)['error'],'Temporary failure')
+        self.assertTrue(any(event['details'].get('failure_stage')=='screenshots' for event in saved['events']))
+
+    def test_fail_exit_emits_the_concrete_exception(self):
+        self.login()
+        import backend
+        with patch.object(backend,'job_event') as event,patch.object(backend,'cleanup_tmp_dir'):
+            try:raise RuntimeError('FFmpeg could not open this video')
+            except RuntimeError:
+                with self.assertRaises(SystemExit):backend.fail_exit(self.root/'scratch',False)
+        event.assert_called_once_with(error='FFmpeg could not open this video')
+
+
+    def test_orphan_running_job_needs_free_os_lock_before_retry(self):
+        from utils import upload_retry
+        import contextlib
+        self.login();identity,job=self.make_retry_job()
+        with self.server.workspace.history.connect() as db:db.execute("UPDATE upload_jobs SET status='running' WHERE id=?",(identity,))
+        with patch.object(uploader,'upload_lock',side_effect=ValueError('Another worker holds the upload lock')),patch.object(upload_retry,'get_site') as site:
+            self.assertEqual(self.post('/api/uploads/retry',{'id':identity}).status_code,400);site.assert_not_called()
+        self.assertEqual(self.server.workspace.history.get(identity)['status'],'running')
+        with patch.object(uploader,'upload_lock',side_effect=contextlib.nullcontext),patch.object(upload_retry,'get_site',return_value=[]),patch.object(uploader,'check_config',return_value=[]),patch.object(uploader,'check_writable'),patch.object(uploader,'run_job',return_value=1):
+            result=self.post('/api/uploads/retry',{'id':identity});self.assertEqual(result.status_code,200,result.text)
+            for _ in range(100):
+                if not self.server.workspace.active:break
+                time.sleep(.01)
+        self.assertEqual(self.server.workspace.history.get(identity)['status'],'interrupted')
+
+    def test_import_retry_rechecks_waiting_import_without_adding_a_download(self):
+        self.login();queue=self.server.workspace.imports
+        with queue.history.connect() as db:
+            db.execute("INSERT INTO torrent_imports(id,client_id,source_hash,name,status,progress,remote_path,local_path,details,created,updated,folder_layout) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",('waiting-test','test-client','f'*40,'Test','waiting',1,'/downloads/Test',str(self.release),'{}',time.time(),time.time(),'direct'))
+        with patch.object(queue,'tick') as tick,patch.object(self.server.workspace.clients,'add_torrent') as download:
+            response=self.post('/api/imports/retry',{'id':'waiting-test'})
+            self.assertEqual(response.status_code,200,response.text);self.assertEqual(response.json()['state'],'queued')
+            tick.assert_called_once_with('waiting-test');download.assert_not_called()
+
+
+    def make_retry_job(self, identity='a'*32):
+        job={'source':str(self.release),'category':uploader.categories()[0]['id'],'post_title':'Saved post title',
+             'description':'Saved description','metadata':{'content_tags':'Drama'},'images':['https://images.example/cover.jpg']}
+        self.server.workspace.history.create(identity,job)
+        self.server.workspace.history.finish(identity,'needs_review',1,'Temporary failure')
+        return identity,job
+
+    def test_retry_preserves_inputs_and_double_click_opens_same_attempt(self):
+        from utils import upload_retry
+        self.login();identity,job=self.make_retry_job()
+        with patch.object(upload_retry,'get_site',return_value=[]),patch.object(uploader,'check_config',return_value=[]),patch.object(uploader,'check_writable'),patch.object(uploader,'run_job',return_value=1) as worker:
+            response=self.post('/api/uploads/retry',{'id':identity})
+            self.assertEqual(response.status_code,200,response.text)
+            result=response.json();self.assertEqual(result['state'],'started');self.assertNotEqual(result['id'],identity)
+            for _ in range(100):
+                if not self.server.workspace.active:break
+                time.sleep(.01)
+            submitted=worker.call_args.args[0]
+            for key,value in job.items():self.assertEqual(submitted[key],value)
+            self.assertEqual(submitted['retry_of'],identity)
+            again=self.post('/api/uploads/retry',{'id':identity}).json()
+            self.assertEqual(again['id'],result['id']);self.assertEqual(again['state'],'already_retried')
+            self.assertEqual(worker.call_count,1)
+            self.assertEqual(self.server.workspace.history.get(identity)['retry_id'],result['id'])
+
+    def test_uncertain_retry_requires_explicit_confirmation_and_blocks_api_failure(self):
+        from utils import upload_retry
+        self.login();identity,job=self.make_retry_job();self.server.workspace.history.update(identity,{'site_status':'pending'})
+        with patch.object(upload_retry,'get_site',return_value=[]),patch.object(uploader,'run_job') as worker:
+            result=self.post('/api/uploads/retry',{'id':identity}).json()
+            self.assertEqual(result['state'],'confirmation_required');worker.assert_not_called()
+        with patch.object(upload_retry,'get_site',side_effect=ValueError('Site is unavailable')),patch.object(uploader,'run_job') as worker:
+            self.assertEqual(self.post('/api/uploads/retry',{'id':identity,'confirmed':True}).status_code,400)
+            worker.assert_not_called()
+        self.assertIsNone(self.server.workspace.history.get(identity)['retry_id'])
+
+    def test_retry_existing_torrent_mismatch_stops_without_hashing(self):
+        from utils import upload_retry
+        from torrent_fixtures import Torrent
+        self.login();identity,job=self.make_retry_job()
+        original=self.root/'original.torrent';fixture=Torrent(self.release);fixture.generate();original.write_bytes(fixture.dump())
+        job['source_torrent']=str(original)
+        with self.server.workspace.history.connect() as db:db.execute('UPDATE upload_jobs SET payload_json=? WHERE id=?',(json.dumps(job),identity))
+        (self.release/'video.mp4').write_bytes(b'changed size')
+        with patch.object(upload_retry,'get_site',return_value=[]),patch.object(uploader,'run_job') as worker:
+            response=self.post('/api/uploads/retry',{'id':identity})
+            self.assertEqual(response.status_code,400,response.text);self.assertIn('rehash',response.json()['error'].lower());worker.assert_not_called()
+
+    def test_accepted_retry_recovers_torrent_without_publication_or_hashing(self):
+        from utils import upload_retry
+        from torrent_fixtures import Torrent,encode
+        from utils.torrent_metadata import decode,TorrentMetadata
+        import contextlib
+        self.login();identity,job=self.make_retry_job()
+        fixture=Torrent(self.release);fixture.generate();meta,_=decode(fixture.dump());meta[b'info'][b'private']=1;raw=encode(meta)
+        self.server.workspace.history.update(identity,{'site_status':'accepted','torrent_id':123})
+        with patch.object(upload_retry,'get_site',return_value=raw) as download,patch.object(uploader,'upload_lock',side_effect=contextlib.nullcontext),patch.object(uploader,'run_job') as worker,patch.object(self.server.workspace.deliveries,'enqueue',return_value=None):
+            response=self.post('/api/uploads/retry',{'id':identity})
+            self.assertEqual(response.status_code,200,response.text);self.assertEqual(response.json()['state'],'recovered')
+            worker.assert_not_called();self.assertEqual(download.call_args.args[1],'/api/v1/torrents/download/123')
+        saved=self.server.workspace.history.get(identity)
+        self.assertEqual(saved['status'],'completed');self.assertEqual(Path(saved['watch_torrent']).read_bytes(),raw)
+        self.assertEqual(saved['torrent_hash'],TorrentMetadata(raw).infohash)
+
+    def test_retry_endpoints_require_session_and_csrf(self):
+        for endpoint in ['/api/uploads/retry','/api/imports/retry']:
+            self.assertEqual(self.post(endpoint,{'id':'a'*32}).status_code,401)
+        self.login();self.csrf='invalid'
+        with patch.object(self.server.workspace,'retry') as retry:
+            self.assertEqual(self.post('/api/uploads/retry',{'id':'a'*32}).status_code,403);retry.assert_not_called()
+
+
     def test_blvckout_secret_and_lookup_require_login_and_csrf(self):
         from utils import blvckout
         self.assertEqual(self.post('/api/blvckout/search',{'query':'Example'}).status_code,401)

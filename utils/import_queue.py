@@ -208,6 +208,31 @@ class ImportQueue:
                 raise ValueError('Could not confirm torrent addition. Check the import queue and your client.') from exc
             return {'id': identity}
 
+    def retry(self, identity, confirmed=False):
+        with self.lock:
+            with self.history.connect() as db:
+                row=db.execute('SELECT * FROM torrent_imports WHERE id=?',(identity,)).fetchone()
+            if not row:raise ValueError('Import not found.')
+            row=dict(row)
+            job=self.history.get(row.get('job_id') or identity)
+            if job:
+                if job['status']=='completed' and row['seed_status']=='pending':
+                    self.seed_completed()
+                    return {'id':row['id'],'state':'queued','message':'Confirmed torrent delivery checked again. Nothing was uploaded to the site.'}
+                return self.workspace.retry(job['id'],confirmed)
+            if row['status'] not in ('downloading','waiting','needs_review'):
+                raise ValueError('This import cannot be retried while it is active or finished.')
+            if row['folder_layout']=='existing':
+                details=json.loads(row['details'])
+                review=self.workspace.review(dict(details,source=row['local_path']),source_torrent=self._original_torrent(row))
+                if not review['ready']:raise ValueError('; '.join(review['errors']))
+                result=self.workspace.upload(review['review_id'],identity=identity)
+                self.update(identity,status='uploaded',job_id=result['id'],error=None)
+                return dict(result,state='started',message='Existing-data upload restarted with its original torrent. No rehash fallback.')
+            if row['status']=='needs_review':self.reconcile(identity)
+        self.tick(identity)
+        return {'id':identity,'state':'queued','message':'Import checked again. Follow its download and upload status in Imports.'}
+
     def reconcile(self, identity):
         with self.lock:
             with self.history.connect() as db:
@@ -261,11 +286,11 @@ class ImportQueue:
                 raise ValueError('This import cannot be cancelled now. Check its upload history.')
         return {'ok': True}
 
-    def tick(self):
+    def tick(self, identity=None):
         with self.lock:
             self.seed_completed()
             with self.history.connect() as db:
-                rows = [dict(r) for r in db.execute("SELECT * FROM torrent_imports WHERE status IN ('downloading','waiting') ORDER BY created")]
+                rows = [dict(r) for r in db.execute("SELECT * FROM torrent_imports WHERE status IN ('downloading','waiting')"+(" AND id=?" if identity else "")+" ORDER BY created",(identity,) if identity else ())]
             for row in rows:
                 try:
                     torrent, files = self.workspace.clients.import_status(row['client_id'], row['source_hash'])

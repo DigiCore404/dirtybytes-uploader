@@ -1,5 +1,13 @@
 # DirtyBytes Uploader changelog
 
+## 2.9.0 · 2026-10-27
+
+- Show the failed processing step and concrete error in Activity and upload details; keep errors in the saved timeline and redact configured credentials from worker output.
+- Add Retry upload in Activity rows and upload details, plus Retry in Imports for failed or pending work. Save upload inputs durably, including post title, metadata, images and original-torrent reuse, and use current settings when retrying.
+- Check the site for an existing release before restarting publication. Accepted uploads only recover the personalized torrent and client delivery; they are never posted or hashed again. Uncertain publication and incomplete older history require explicit confirmation.
+- Keep the original attempt and link it to its retry; repeated clicks open that attempt instead of starting another. Check the OS upload lock before recovering an orphaned running record; never interrupt an active worker.
+- Recheck waiting imports without adding another source download. Existing-torrent mismatches continue to stop without a rehash fallback. Pre-publication retries rerun processing; legacy records can only restore details that were previously saved.
+
 ## 2.8.0 · 2026-10-26
 
 - Add editable torrent exclusions in Settings and config.ini, for example `*.nfo, *.txt`. Patterns apply recursively and case-insensitively. Original files stay untouched; excluding every file stops the upload.

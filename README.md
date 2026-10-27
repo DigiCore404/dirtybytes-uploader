@@ -325,3 +325,14 @@ Filename patterns apply to all subfolders and ignore letter case. Use a relative
 Add your **BLVCKOUT API key** under **Settings → Metadata providers**, use **Test BLVCKOUT**, and select **BLVCKOUT** in the metadata helper. Obtain a read key from [your BLVCKOUT account](https://blvckout.foo/account). Searches and keys are sent only to its documented API; the saved key is never returned to the browser. See [API documentation](https://blvckout.foo/api-docs).
 
 When you choose **Use metadata**, selected images are first downloaded and uploaded to your configured image host. The resulting direct image URLs are used for the post and cover. A signed or extensionless source URL is never fixed by appending `.jpg`. If rehosting fails, the upload fields remain unchanged and an error is shown. Metadata genres/tags are deduplicated and limited to 12.
+
+
+### Retry a failed or pending upload
+
+Use **Retry upload** in Activity, open an attempt for its retry/delivery action, or use **Retry** in Imports after fixing the reported problem. New attempts preserve the saved source, category, site post title, description, metadata, images and original-torrent choice, while reading current settings. The previous attempt and its log remain available; **View retry** opens its newer attempt.
+
+Before retrying publication, the uploader checks the site's exact-name search. If an upload is already accepted, retry only recovers the personalized torrent and delivery to the watch folder/client, without submitting or hashing again. An uncertain previous response requires you to check the site and explicitly confirm. If the API cannot be checked, retry stops. Active workers are never interrupted; an orphaned running record is recoverable only when its OS upload lock is free.
+
+A retry before publication reruns processing rather than resuming partially generated screenshots or hashes. Existing-torrent reuse still stops on a mismatch without rehashing. Older history did not save every input, so incomplete records require confirmation; original import torrents are recovered when available. Retry does not automatically restart a paused source download or delete its data.
+
+Failed attempts show the concrete error and processing step in Activity and upload details, with the saved worker log, exit code and timeline. Configured credentials are redacted. Retry keeps the previous attempt and its reason; successful delivery recovery retains the earlier error events in its timeline. Older records can only show the error information that was actually saved.

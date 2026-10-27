@@ -296,6 +296,10 @@ class Workspace:
                 'ready': not errors, 'errors': errors,
                 'watch': config.get('Paths', 'WATCHFOLDER')}
 
+    def retry(self, identity, confirmed=False):
+        from utils.upload_retry import retry
+        return retry(self,identity,confirmed)
+
     def upload(self, token, identity=None):
         with self.lock:
             if self.active:
@@ -326,7 +330,7 @@ class Workspace:
             del self.drafts[token]
 
         def worker():
-            secrets_to_hide = [config.get('Website', 'API_KEY'), config.get('Torrent', 'ANNOUNCEURL'), config.get('ImageHost', 'API_KEY', fallback=''), config.get('ImageHost', 'AUTHCODE', fallback=''), config.get('ThePornDB', 'TOKEN', fallback='')]
+            secrets_to_hide = sorted([value for section in config.sections() for key,value in config.items(section) if value and re.search(r'(password|passwd|passkey|api_?key|token|secret|authcode|cookie|announceurl)$',key,re.I)],key=len,reverse=True)
             def redact(line):
                 line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', str(line))
                 for secret in secrets_to_hide:
@@ -634,6 +638,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/drafts/save':return self.send(workspace.saved_drafts.save(data))
             if path == '/api/drafts/delete':return self.send(workspace.saved_drafts.delete(str(data.get('id',''))))
             if path == '/api/drafts/preview':return self.send(workspace.saved_drafts.preview(str(data.get('id',''))),202)
+            if path == '/api/uploads/retry':
+                return self.send(workspace.retry(str(data.get('id','')),data.get('confirmed') is True))
+            if path == '/api/imports/retry':
+                return self.send(workspace.imports.retry(str(data.get('id','')),data.get('confirmed') is True))
             if path == '/api/delivery/retry':
                 job=workspace.history.get(str(data.get('id','')))
                 if not job or job['site_status']!='accepted':raise ValueError('Choose an accepted upload with a confirmed torrent.')
