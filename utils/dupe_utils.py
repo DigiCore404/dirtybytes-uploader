@@ -96,7 +96,7 @@ def check_and_download_dupe(release_name, auth_headers):
             raise ValueError('Duplicate check returned an unexpected format. Upload stopped.')
 
         for torrent in torrents:
-            if torrent['name'] == release_name:
+            if str(torrent['name']).strip().casefold() == release_name.strip().casefold():
                 torrent_id = torrent['id']
                 dupe_torrent_url = f"{config.get('Website', 'SITEURL')}/api/v1/torrents/download/{torrent_id}"
 

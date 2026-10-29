@@ -30,6 +30,7 @@ jobs:
           node tests/test_upload_retry.cjs
           node tests/test_metadata_rehost.cjs
           node tests/test_search_name.cjs
+          node tests/test_library_sort.cjs
           node tests/test_catalogue.cjs
           node tests/test_catalogue_combine.cjs
           node tests/test_activity_navigation.cjs

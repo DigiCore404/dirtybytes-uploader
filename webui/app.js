@@ -353,3 +353,5 @@ $('preview-upload-draft').addEventListener('click',()=>saveUploadDraft(true));
 $('draft-preview-dialog').addEventListener('close',()=>{++previewPoll;previewDraftId=null;});
 
 apiTestControls($('blvckout-key'),'blvckout','BLVCKOUT',()=>({blvckout_key:$('blvckout-key').value}));
+
+for(const [id,clear] of [['catalogue-cookie-save',false],['catalogue-cookie-clear',true]])$(id).addEventListener('click',async()=>{try{await api('/api/catalogue/sessions',{source:$('catalogue-cookie-source').value,cookies:clear?'':$('catalogue-cookies').value,clear});$('catalogue-cookies').value='';$('catalogue-cookie-status').textContent=clear?'Saved cookies removed.':'Cookies saved. Retry your metadata search.';}catch(e){$('catalogue-cookie-status').textContent=e.message;}});

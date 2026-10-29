@@ -409,7 +409,7 @@ def run_backend_cli(arguments):
         job['source_torrent'] = str(original)
     if source.is_file():
         from utils.single_files import prepare
-        source = Path(prepare(str(source), config)['source'])
+        source = Path(prepare(str(source), config, create=False)['source'])
     if not source.is_dir() and not source.is_file():
         raise ValueError('Choose a release folder or file.')
     if args.cat is not None and args.cat not in {row['id'] for row in categories()}:
@@ -480,7 +480,7 @@ def main():
         return 0
     job = validate_job(args.folder, args.cat, args.description, args.image,
                        dict(studio=args.studio, performers=args.performers, content_tags=args.genre,
-                            release_year=args.year, language=args.language), config, source_torrent=args.torrent, prepare_files=not args.dry_run,post_title=args.title)
+                            release_year=args.year, language=args.language), config, source_torrent=args.torrent, prepare_files=False,post_title=args.title)
     print(review_text(job, config))
     if args.dry_run:
         print('\nDry run complete. No network calls, torrent creation or upload.')

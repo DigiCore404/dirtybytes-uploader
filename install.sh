@@ -43,7 +43,6 @@ fi
 .venv/bin/python -m pip install --disable-pip-version-check -r requirements.lock.txt
 .venv/bin/python -m pip check
 if [[ $ARCHIVE -eq 1 ]]; then bash scripts/build-archive-tools.sh "$PWD/tools/archive"; fi
-PLAYWRIGHT_BROWSERS_PATH="$PWD/tools/browser" .venv/bin/python -m playwright install --no-shell chromium
 if [[ ! -e config.ini ]]; then
   (umask 077; cp config.example.ini config.ini)
 fi

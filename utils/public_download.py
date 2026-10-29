@@ -3,9 +3,9 @@ import http.client
 import ipaddress
 import socket
 import ssl
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, parse_qs
 
-CATALOGUE_HOSTS = frozenset({'jeedoo.com','adultdvdempire.com','store.freeones.com','en.erotik.com','asiacollection.net','iafd.com','egafd.com','adultfilmdatabase.com','data18.com','m.aebn.net','themoviedb.org','adultboxcovers.com'})
+CATALOGUE_HOSTS = frozenset({'jeedoo.com','adultdvdempire.com','store.freeones.com','en.erotik.com','asiacollection.net','iafd.com','egafd.com','adultfilmdatabase.com','data18.com','m.aebn.net','themoviedb.org','adultboxcovers.com','store18.com'})
 
 
 def validate_url(url, allowed_hosts=None):
@@ -29,7 +29,8 @@ class PinnedHTTPS(http.client.HTTPSConnection):
             self.sock.close();raise
 
 
-def download(url, allowed_hosts=None, limit=2*1024*1024):
+def download(url, allowed_hosts=None, limit=2*1024*1024, source_session=False):
+    original_host=validate_url(url,allowed_hosts).hostname
     for _ in range(4):
         parsed=validate_url(url,allowed_hosts)
         try:
@@ -41,13 +42,26 @@ def download(url, allowed_hosts=None, limit=2*1024*1024):
             try:
                 target=parsed.path or '/'
                 if parsed.query:target+='?'+parsed.query
-                connection.request('GET',target,headers={'User-Agent':'DirtyBytes-MetadataHelper/1.0','Accept-Language':'en-US,en;q=0.8'})
+                headers={'User-Agent':'Mozilla/5.0 (compatible; DirtyBytesMetadata/2.10)','Accept-Language':'en-US,en;q=0.8','Accept-Encoding':'identity'}
+                if source_session and parsed.hostname==original_host:
+                    from utils.catalogue_sessions import cookie_for
+                    cookie=cookie_for(parsed.hostname)
+                    if cookie:headers['Cookie']=cookie
+                connection.request('GET',target,headers=headers)
                 response=connection.getresponse()
                 if response.status in (301,302,303,307,308):
-                    url=urljoin(url,response.getheader('Location') or '')
+                    next_url=urljoin(url,response.getheader('Location') or '')
+                    if source_session and validate_url(next_url,allowed_hosts).hostname!=original_host:
+                        raise ValueError('Catalogue redirected to another host. Open the source manually; no session was forwarded.')
+                    url=next_url
                     continue
+                if response.status==404 and source_session and parsed.hostname in ('www.jeedoo.com','jeedoo.com') and parsed.path in ('/','/stream-download/','/porn-movies/','/gay-stream-download/','/gay-porn-movies/') and parse_qs(parsed.query).get('search',[''])[0].strip():
+                    from bs4 import BeautifulSoup
+                    empty_body=response.read(limit+1)
+                    if len(empty_body)<=limit and any(h.get_text(' ',strip=True).casefold().startswith('no results for ') for h in BeautifulSoup(empty_body,'html.parser').select('h1')):
+                        return b'','text/html',url
                 if response.status!=200:
-                    raise ValueError('This source returned HTTP '+str(response.status)+'. Use a direct catalogue URL or another source; login and browser challenges cannot be scanned here.')
+                    raise ValueError('This source returned HTTP '+str(response.status)+'. Open the source manually. If it requires consent or a session, save its cookies under Source access & cookies and retry.')
                 if int(response.getheader('Content-Length') or 0)>limit:raise ValueError('This source is too large.')
                 body=response.read(limit+1)
                 if len(body)>limit:raise ValueError('This source is too large.')
@@ -59,6 +73,6 @@ def download(url, allowed_hosts=None, limit=2*1024*1024):
 
 
 def catalogue_page(url):
-    body,mime,final=download(url,CATALOGUE_HOSTS)
+    body,mime,final=download(url,CATALOGUE_HOSTS,source_session=True)
     if 'html' not in mime.lower():raise ValueError('This catalogue did not return an HTML page.')
     return {'html':body.decode('utf-8',errors='replace'),'url':final}

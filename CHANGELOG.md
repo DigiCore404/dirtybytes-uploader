@@ -1,5 +1,12 @@
 # DirtyBytes Uploader changelog
 
+## 2.10.0 · 2026-10-29
+
+- Run the shared web/CLI duplicate check before archive mounting, directory scanning, screenshots and hashing. Check both the source name and custom post title, matching name case without requiring DUPEDL. An existing duplicate stops processing; it no longer triggers an optional unpacked upload. The tracker still performs its final duplicate check.
+- Replace Chromium metadata reads with bounded, DNS-pinned Python HTTPS. Reuse BLVCKOUT's HTML metadata parser and text repair for ADE/Jeedoo while preserving search, source comparison and previews for all supported catalogues. New installations and Docker images no longer install Chromium or Playwright.
+- Add Source access & cookies to metadata search, with instructions for manually accepting a source's terms in your own browser and pasting its Cookie header. Save cookies privately per host, never expose them through the API, and never forward them across hosts or to image downloads. Expired sessions and browser challenges require manual action; no gates or terms are accepted automatically.
+- Sort Library by name, file size, modification date or type, ascending/descending, with optional folders first. Remember preferences in the browser. Folder sizes are left unknown to avoid recursive disk scans.
+
 ## 2.9.0 · 2026-10-27
 
 - Show the failed processing step and concrete error in Activity and upload details; keep errors in the saved timeline and redact configured credentials from worker output.

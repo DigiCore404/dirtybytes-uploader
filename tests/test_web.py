@@ -596,10 +596,23 @@ MEDIAINFO = false
             self.assertEqual(self.post('/api/images/upload',{'image':'invalid'}).status_code,403)
             upload.assert_not_called()
 
+    def test_source_cookies_require_auth_csrf_and_never_echo_secret(self):
+        from utils import catalogue_sessions
+        data={'source':'adultdvdempire.com','cookies':'session=private-fixture'}
+        with patch.object(catalogue_sessions,'save') as save:
+            self.assertEqual(self.post('/api/catalogue/sessions',data).status_code,401)
+            save.assert_not_called();self.login()
+            old=self.csrf;self.csrf='wrong'
+            self.assertEqual(self.post('/api/catalogue/sessions',data).status_code,403)
+            save.assert_not_called();self.csrf=old
+            response=self.post('/api/catalogue/sessions',data)
+            self.assertEqual(response.status_code,200);self.assertNotIn('private-fixture',response.text)
+            save.assert_called_once_with('adultdvdempire.com','session=private-fixture',clear=False)
+
     def test_catalogue_fetch_and_rehost_need_authenticated_csrf(self):
         self.assertEqual(self.post('/api/catalogue/fetch',{'url':'https://www.jeedoo.com/'}).status_code,401)
         self.login()
-        with patch.object(web,'catalogue_browser_page',return_value={'html':'<h1>Test</h1>','url':'https://www.jeedoo.com/'}) as fetch:
+        with patch.object(web,'catalogue_fetch',return_value={'html':'<h1>Test</h1>','url':'https://www.jeedoo.com/'}) as fetch:
             self.assertEqual(self.post('/api/catalogue/fetch',{'url':'https://www.jeedoo.com/'}).status_code,200)
             fetch.assert_called_once_with('https://www.jeedoo.com/')
         with patch.object(web,'public_download',return_value=(b'GIF89a','image/gif','https://example.com/cover.gif')),patch.object(web.image_host,'upload',return_value={'url':'https://imghost.dev/cover.gif','provider':'imghost'}):

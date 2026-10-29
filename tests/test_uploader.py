@@ -283,6 +283,23 @@ TorrentDownloadRetryDelay = 0
         self.assertEqual(uploader.run_job(self.job(), self.config, output.append), 10, '\n'.join(output))
         self.assertEqual(state['posts'], [])
 
+    def test_duplicate_archive_stops_before_unpacking_or_screenshots(self):
+        state=self.serve('duplicate')
+        (self.release/'payload.rar').write_bytes(b'not a valid archive: must never be opened')
+        output=[]
+        self.assertEqual(uploader.run_job(self.job(),self.config,output.append),10,'\n'.join(output))
+        self.assertEqual(state['posts'],[])
+        self.assertNotIn('Cannot prepare unpacked source','\n'.join(output))
+        self.assertNotIn('Screenshots','\n'.join(output))
+
+    def test_custom_post_title_is_checked_before_archive_work(self):
+        state=self.serve('duplicate')
+        other=self.release.with_name('Other.Release');self.release.rename(other);self.release=other
+        (other/'payload.rar').write_bytes(b'not a valid archive')
+        output=[]
+        self.assertEqual(uploader.run_job(self.job(post_title='test.release'),self.config,output.append),10,'\n'.join(output))
+        self.assertEqual(state['posts'],[])
+
     def test_failed_duplicate_check_never_posts(self):
         state = self.serve('bad-dupe-check')
         self.assertNotEqual(uploader.run_job(self.job(), self.config, lambda _: None), 0)

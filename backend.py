@@ -165,6 +165,36 @@ def main():
             print(f"{bcolors.ENDC}{bcolors.FAIL}Unknown hasher: {hasher}\n{bcolors.ENDC}")
             fail_exit(tmp_dir, cleanup_enabled, reason='Unsupported torrent engine. Select mkbrr in Settings.')
 
+        # Shared web/CLI preflight: never mount archives or generate media for a dupe.
+        print_section("Login")
+        print(f"{bcolors.ENDC}{bcolors.YELLOW}Logging in via API Key...\n{bcolors.ENDC}")
+        # Login now returns headers (including API Key) instead of cookies
+        try:
+            auth_headers = login()  # Updated login returns auth headers
+            if not auth_headers:
+                log_to_file(log_file_path, "Login failed. Cannot proceed with the script.")
+                print(f"{bcolors.RED}Login failed. Cannot proceed with the script.\n{bcolors.ENDC}")
+                fail_exit(tmp_dir, cleanup_enabled, release_dir=directory, reason='Site login failed. Check the site API key and connection.')
+            else:
+                print(f"{bcolors.OKGREEN}Login successful. Proceeding...\n{bcolors.ENDC}")
+        except Exception as e:
+            log_to_file(log_file_path, f"Error during login: {str(e)}")
+            print(f"{bcolors.FAIL}Error during login: {str(e)}\n{bcolors.ENDC}")
+            fail_exit(tmp_dir, cleanup_enabled, release_dir=directory)
+
+        if config.getboolean('Settings','DUPECHECK') or job.get('retry_of'):
+            job_event(stage='duplicate_check')
+            try:
+                names=list(dict.fromkeys(filter(None,[directory_name,job.get('post_title','')])))
+                for name in names:
+                    if check_and_download_dupe(name,auth_headers):
+                        job_event(stage='duplicate',site_status='duplicate')
+                        update_status(directory,'dupe')
+                        cleanup_tmp_dir(tmp_dir,cleanup_enabled)
+                        sys.exit(10)
+            except Exception as exc:
+                fail_exit(tmp_dir,cleanup_enabled,release_dir=directory,reason=str(exc))
+
         original_release_name = directory_name
         try:
             reuse_torrent = bool(job.get('source_torrent') or config.getboolean('Torrent', 'EDIT_TORRENT'))
@@ -180,6 +210,9 @@ def main():
                 rar_source = None  # Reuse preserves the original payload, including archives.
                 config.set('UnrarUpload', 'MODE', 'original_only')
             else:
+                if directory.is_file():
+                    from utils.single_files import prepare
+                    directory=Path(prepare(str(directory),config)['source'])
                 directory, rar_source = prepare_source(directory, log_file_path)
             directory_name = directory.stem if directory.is_file() else directory.name
         except Exception as exc:
@@ -226,22 +259,6 @@ def main():
         print(f"{bcolors.RED}################ Settings ################{bcolors.ENDC}")
         print()
 
-        print_section("Login")
-        print(f"{bcolors.ENDC}{bcolors.YELLOW}Logging in via API Key...\n{bcolors.ENDC}")
-        # Login now returns headers (including API Key) instead of cookies
-        try:
-            auth_headers = login()  # Updated login returns auth headers
-            if not auth_headers:
-                log_to_file(log_file_path, "Login failed. Cannot proceed with the script.")
-                print(f"{bcolors.RED}Login failed. Cannot proceed with the script.\n{bcolors.ENDC}")
-                fail_exit(tmp_dir, cleanup_enabled, release_dir=directory, reason='Site login failed. Check the site API key and connection.')
-            else:
-                print(f"{bcolors.OKGREEN}Login successful. Proceeding...\n{bcolors.ENDC}")
-        except Exception as e:
-            log_to_file(log_file_path, f"Error during login: {str(e)}")
-            print(f"{bcolors.FAIL}Error during login: {str(e)}\n{bcolors.ENDC}")
-            fail_exit(tmp_dir, cleanup_enabled, release_dir=directory)
-
         from utils.publication_identity import resolve_anonymity
         try:
             identity=resolve_anonymity(config,auth_headers)
@@ -254,66 +271,6 @@ def main():
 
         # Create process-specific directory in tmp_dir
         temp_dir = tmp_dir
-
-        # Check for duplicates
-        try:
-            # Checking is independent of whether existing torrents should be downloaded.
-            if dupecheck_enabled:
-                job_event(stage='duplicate_check')
-                print_section("Dupe checking")
-                # Passing auth_headers instead of cookies
-                duplicate_found = check_and_download_dupe((job.get('post_title') or directory_name) if job.get('retry_of') else directory_name, auth_headers)
-                if duplicate_found:
-                    job_event(stage='duplicate', site_status='duplicate')
-                    log("Duplicate found. Skipping further operations.", log_file_path)
-                    category_name, category_id_str = determine_category(directory_name, manual_id=manual_cat_id)
-                    category_id = int(category_id_str)
-                    upload_details['category'] = f"{category_name} ({category_id})"
-
-                    dupe_replacements = {'!version!': program_version}
-                    try:
-                        process_nfo(directory, dupe_replacements, log_file_path, nfo_file=nfo_file_path)
-                    except Exception as e:
-                        log(f"Error processing .nfo file for duplicate UNRAR upload: {str(e)}", log_file_path)
-
-                    try:
-                        unrar_result = {'status': 'skipped', 'reason': 'existing_torrent'} if reuse_torrent or directory.is_file() else run_unrar_upload(
-                            release_name=directory_name,
-                            release_dir=directory,
-                            category_name=category_name,
-                            category_id=category_id,
-                            auth_headers=auth_headers,
-                            mediainfo_content='',
-                            base_replacements=dupe_replacements,
-                            template_path=template_path,
-                            tmp_dir=tmp_dir,
-                            upload_log_path=upload_log_path,
-                            hasher=hasher,
-                            dupedl_enabled=dupedl_enabled,
-                        )
-                    except Exception as e:
-                        log(f"Optional UNRAR upload failed after duplicate handling: {str(e)}", log_file_path)
-                        unrar_result = {'status': 'failed', 'reason': str(e)}
-                    upload_details['unrar_upload_status'] = unrar_result.get('status')
-                    if unrar_result.get('reason'):
-                        upload_details['unrar_upload_reason'] = unrar_result.get('reason')
-                    if unrar_result.get('mount_path'):
-                        upload_details['unrar_mount_path'] = unrar_result.get('mount_path')
-                    if unrar_result.get('torrent_name'):
-                        upload_details['unrar_torrent_name'] = unrar_result.get('torrent_name')
-
-                    update_status(directory, 'dupe')
-                    update_upload_status(name=directory_name, new_status='dupe')
-                    log_upload_details(upload_details, upload_log_path, duplicate_found=True)
-                    cleanup_tmp_dir(tmp_dir, cleanup_enabled)  # Clean up tmp_dir
-                    sys.exit(10)
-            else:
-                log("Dupe check or download is disabled in the config.", log_file_path)
-
-        except Exception as e:
-            log(f"Error checking for duplicates: {str(e)}", log_file_path)
-            update_upload_status(name=directory_name, new_status='failed')
-            fail_exit(tmp_dir, cleanup_enabled, release_dir=directory)
 
         print_section("Category")
 

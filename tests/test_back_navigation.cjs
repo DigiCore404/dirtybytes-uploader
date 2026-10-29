@@ -1,12 +1,13 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 const app=fs.readFileSync(path.join(__dirname,'../webui/app.js'),'utf8'),library=fs.readFileSync(path.join(__dirname,'../webui/library.js'),'utf8');
+const sortContext={window:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../webui/library-sort.js'),'utf8'),sortContext);
 function node(){return{hidden:false,disabled:false,value:'',textContent:'',dataset:{},children:[],events:{},classList:{toggle(){}},addEventListener(event,callback){this.events[event]=callback;},click(){return this.events.click?.();},close(){this.closed=true;},replaceChildren(...items){this.children=items;},append(...items){this.children.push(...items);}};}
 function environment(){
  const nodes=new Map(),requests=[];const $=id=>{if(!nodes.has(id))nodes.set(id,node());return nodes.get(id);};
  const dialogBack=node();dialogBack.dataset.backDialog='example-dialog';
  const context=vm.createContext({$,document:{body:{classList:{toggle(){}}},querySelectorAll:selector=>selector==='[data-back-dialog]'?[dialogBack]:[],createElement:node},
-   currentStep:1,selectedJob:null,closeJobDetails(){context.selectedJob=null;},refreshActivity:async()=>{},loadSecurity:async()=>{},loadDeliveryClients:async()=>{},loadLibrary:async()=>{},refreshImports:async()=>{},refreshClients:async()=>{},toast(){},
+   LibrarySort:sortContext.window.LibrarySort,currentStep:1,selectedJob:null,closeJobDetails(){context.selectedJob=null;},refreshActivity:async()=>{},loadSecurity:async()=>{},loadDeliveryClients:async()=>{},loadLibrary:async()=>{},refreshImports:async()=>{},refreshClients:async()=>{},toast(){},
    api:url=>new Promise((resolve,reject)=>requests.push({url,resolve,reject})),element:node,Option:function(text,value){this.text=text;this.value=value;},state:{categories:[]},prettySize:String});
  return{context,$,requests,dialogBack,run:code=>vm.runInContext(code,context)};
 }

@@ -319,16 +319,17 @@ const normalize = (doc,url,site,query='') => {
  description:plainDescription(description),images:(fields.covers||[]).filter(u=>!/[\[\]\r\n]/.test(u)).slice(0,8),
  metadata:{studio:fields.studio||'',performers:fields.performers||'',release_year:fields.release_year||'',runtime_minutes:fields.runtime_minutes||'',content_tags:(fields.genres||'').split(',').map(clean).filter(genreAllowed).join(', ')}};
 };
-async function page(url,fetcher){const result=await fetcher(url);return {doc:parse(result.html),url:result.url};}
-async function fromURL(url,fetcher){const site=SITES.find(s=>sameHost(url,s));if(!site)throw new Error('Choose a URL from one of the supported catalogues.');const result=await page(url,fetcher);if(!sameHost(result.url,site))throw new Error('The catalogue redirected to a different source.');return normalize(result.doc,result.url,site);}
+function normalizePage(result,site,query=''){const row=normalize(result.doc,result.url,site,query);if(result.metadata){row.title=result.metadata.title||row.title;row.metadata={...row.metadata,...result.metadata};delete row.metadata.title;delete row.metadata.images;row.images=result.metadata.images?.length?result.metadata.images:row.images;row.score=query?Math.round(similarity(query,row.title)*100):100;}return row;}
+async function page(url,fetcher){const result=await fetcher(url);return {doc:parse(result.html),url:result.url,metadata:result.metadata};}
+async function fromURL(url,fetcher){const site=SITES.find(s=>sameHost(url,s));if(!site)throw new Error('Choose a URL from one of the supported catalogues.');const result=await page(url,fetcher);if(!sameHost(result.url,site))throw new Error('The catalogue redirected to a different source.');return normalizePage(result,site);}
 async function scan(site,query,fetcher){
  const result=await page(site.search(query),fetcher);
- if(site.release.test(new URL(result.url).pathname)||(site.releaseMarker&&result.doc.querySelector(site.releaseMarker)))return [normalize(result.doc,result.url,site,query)];
+ if(site.release.test(new URL(result.url).pathname)||(site.releaseMarker&&result.doc.querySelector(site.releaseMarker)))return [normalizePage(result,site,query)];
  const seen=new Set();const candidates=[];
  for(const a of result.doc.querySelectorAll('a[href]')){const url=absoluteUrl(a.getAttribute('href'),result.url);if(!url||seen.has(url)||!sameHost(url,site))continue;seen.add(url);const path=new URL(url).pathname;if(!site.release.test(path))continue;const title=clean(a.querySelector('img[alt]')?.alt)||clean(a.getAttribute('title'))||clean(a.textContent);const score=similarity(query,title||decodeURIComponent(path).replace(/[-_/]+/g,' '));if(score>=.4)candidates.push({url,score});}
  candidates.sort((a,b)=>b.score-a.score);
  const values=[],failures=[];
- for(const candidate of candidates.slice(0,3)){try{const detail=await page(candidate.url,fetcher);values.push(normalize(detail.doc,detail.url,site,query));}catch(error){failures.push(error.message);}}
+ for(const candidate of candidates.slice(0,3)){try{const detail=await page(candidate.url,fetcher);values.push(normalizePage(detail,site,query));}catch(error){failures.push(error.message);}}
  if(!values.length&&failures.length)throw new Error("Matching releases were found, but their details could not be read. "+failures[0]);
  return values;
 }

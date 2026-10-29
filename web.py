@@ -21,7 +21,6 @@ from utils.import_queue import ImportQueue
 from utils import tpdb, image_host
 from utils.metadata_settings import ignore_words, clean_words
 from utils.public_download import catalogue_page, download as public_download
-from utils.catalogue_browser import fetch as catalogue_browser_page
 from utils.web_security import Security
 from utils.delivery import remote_root, check_mapping
 import uploader
@@ -58,9 +57,9 @@ def browse(value, config, max_entries=1000):
             if not child.resolve().is_relative_to(root):
                 continue
             if child.is_dir():
-                folders.append({'name': child.name, 'path': str(child)})
+                folders.append({'name': child.name, 'path': str(child), 'size': None, 'modified': child.stat().st_mtime, 'type': 'folder'})
             elif child.is_file():
-                files.append({'name': child.name, 'path': str(child), 'size': child.stat().st_size})
+                files.append({'name': child.name, 'path': str(child), 'size': child.stat().st_size, 'modified': child.stat().st_mtime, 'type': child.suffix.lower().lstrip('.') or 'file'})
         except OSError:
             continue
         if max_entries and len(folders) + len(files) >= max_entries:
@@ -100,13 +99,8 @@ def folder_summary(path):
 
 
 def catalogue_fetch(url):
-    """Chromium read when Playwright is installed; plain HTTPS download otherwise."""
-    try:
-        return catalogue_browser_page(url)
-    except ValueError as exc:
-        if 'not installed' not in str(exc):
-            raise
-        return catalogue_page(url)
+    from utils.catalogue_http import fetch
+    return fetch(url)
 
 
 class Workspace:
@@ -318,9 +312,6 @@ class Workspace:
             uploader.check_writable(config)
             job = draft['job']
             content_path(job['source'], config, allow_file=True)
-            if Path(job['source']).is_file():
-                from utils.single_files import prepare
-                job=dict(job, source=prepare(job['source'],config)['source'])
             if job.get('source_torrent'):
                 from utils.source_torrent import validate
                 validate(job['source_torrent'], job['source'], allowed_root=Path(config.get('Paths', 'DATADIR')))
@@ -420,10 +411,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == '/health':
             return self.send({'ok': True})
-        if path in ('/', '/client-controls.js', '/app.css', '/app.js', '/library.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/updates.js', '/updates.css', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
+        if path in ('/', '/client-controls.js', '/app.css', '/app.js', '/library-sort.js', '/library.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/updates.js', '/updates.css', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
             name, mime = {'/': ('index.html', 'text/html'), '/app.css': ('app.css', 'text/css'),
                           '/app.js': ('app.js', 'text/javascript'),
                           '/library.js': ('library.js', 'text/javascript'),
+                          '/library-sort.js': ('library-sort.js', 'text/javascript'),
                           '/client-controls.js': ('client-controls.js', 'text/javascript'),
                           '/config-settings.js': ('config-settings.js', 'text/javascript'),
                           '/updates.js': ('updates.js', 'text/javascript'),
@@ -611,6 +603,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(check_api_connection(uploader.load_config(), data))
             if path == '/api/updates/check':
                 return self.send(workspace.updates.status(uploader.load_config().getboolean('Settings', 'CHECK_UPDATES', fallback=True), force=True))
+            if path == '/api/catalogue/sessions':
+                from utils.catalogue_sessions import save
+                save(str(data.get('source','')),str(data.get('cookies','')),clear=data.get('clear') is True)
+                return self.send({'ok':True})
             if path == '/api/catalogue/fetch':
                 return self.send(catalogue_fetch(str(data.get('url', ''))))
             if path == '/api/images/preview':

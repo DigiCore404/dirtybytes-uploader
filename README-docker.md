@@ -20,7 +20,7 @@ An empty upload workspace and the built-in installation and seeding guide.
 
 ![Empty metadata search](docs/images/metadata-search.jpg)
 
-The complete Linux amd64 image contains Python, Chromium for catalogue lookups,
+The complete Linux amd64 image contains Python, Python HTTP catalogue lookups,
 FFmpeg, MediaInfo, mkbrr, MTN, UnRAR and rar2fs.
 
 ## Library: browse and upload
@@ -231,3 +231,9 @@ In **Settings → Folders & seeding**, choose watch-folder delivery or automatic
 Choose **Account preference**, **Anonymous** or **Named** under Upload behaviour. Account preference reads your site's upload privacy setting and stops safely if it cannot be read. Older explicit anonymous configurations retain their privacy until you save a new choice. Required screenshot failures stop publication rather than silently omitting the images.
 
 Use **Changelog** in the sidebar for the full change history. Update instructions include the changelog for a newer stable release when available, with the installed history as a fallback.
+
+### Metadata source sessions and Library sorting (2.10.0)
+
+Catalogue lookups use Python HTTPS without Chromium. ADE and Jeedoo detail extraction uses the BLVCKOUT importer parser; other supported sources retain their HTML preview parser. If a source requires access confirmation, open it in your own browser and accept its terms yourself. In Developer tools → Network, reload, select the document request and copy only its Cookie request-header value. Open Metadata search → Source access & cookies, select that source, paste and save. Cookies are stored in private `data/catalogue-sessions.json` with owner-only permissions on Linux; the data volume must persist. They are never shown again and only go to the exact source host. Remove/replace them using the same controls. Never share cookies or use someone else's session. This cannot solve CAPTCHA, JavaScript challenges or IP-bound access; use another source or enter metadata manually in those cases.
+
+Library supports Name, Size (files), Date modified and Type, ascending/descending, with Folders first optional. Folder size is unknown because browsing does not recursively scan release payloads. Duplicate checking, when enabled, precedes unpacking and checks the original release name and custom site title in both web and CLI. A final tracker rejection can still occur for content/hash duplicates or concurrent uploads.

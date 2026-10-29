@@ -3,5 +3,7 @@ certifi==2026.7.22
 charset-normalizer==3.5.2
 idna==3.20
 requests==2.34.2
-playwright==1.64.0
+beautifulsoup4==4.13.1
+soupsieve==2.6
+typing_extensions==4.16.0
 urllib3==2.8.0

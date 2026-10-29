@@ -13,11 +13,12 @@ async function loadLibrary(path=libraryPath,back=false){
   for(const saved of listing.saved_folders)if(saved!==listing.root)bookmarks.append(new Option(saved,saved));
   bookmarks.value=listing.saved_folders.includes(listing.path)||listing.path===listing.root?listing.path:listing.root;
   table.replaceChildren();
-  for(const [kind,rows] of [['folder',listing.folders],['file',listing.files]])for(const row of rows){
+  const rows=LibrarySort.rows(listing,$('library-sort').value,$('library-direction').value,$('library-folders-first').checked);
+  for(const row of rows){const kind=row.kind;
    if(request!==libraryRequest)return;
    const item=element('div','library-row'),open=element('button','library-name');open.type='button';open.append(icon(kind==='folder'?'folder':'grid'),element('span','',row.name));
    if(kind==='folder'){open.addEventListener('click',()=>loadLibrary(row.path));open.title='Open folder';}else{open.title=row.name;}
-   const info=element('small','field-help',kind==='file'?prettySize(row.size):'Folder');
+   const info=element('small','field-help',(kind==='file'?prettySize(row.size):'Folder')+' · '+new Date(row.modified*1000).toLocaleDateString());
    const category=element('select');category.setAttribute('aria-label','Category for '+row.name);category.append(new Option(row.category?'Automatic: '+row.category.name:'No matching filter',''));
    if(libraryOverrides.has(row.path)){const saved=libraryOverrides.get(row.path),cat=state.categories.find(c=>c.id===saved);if(cat)category.append(new Option(cat.name,String(saved)));}
    category.value=libraryOverrides.has(row.path)?String(libraryOverrides.get(row.path)):'';
@@ -89,3 +90,5 @@ async function saveLibraryDraft(preview=false){
 }
 $('save-library-draft').addEventListener('click',()=>saveLibraryDraft(false));
 $('preview-library-draft').addEventListener('click',()=>saveLibraryDraft(true));
+
+for(const id of ['library-sort','library-direction','library-folders-first']){const control=$(id);let saved=null;try{saved=localStorage.getItem(id)}catch{};if(saved!==null){if(control.type==='checkbox')control.checked=saved==='true';else if([...control.options].some(o=>o.value===saved))control.value=saved;}control.addEventListener('change',()=>{try{localStorage.setItem(id,control.type==='checkbox'?String(control.checked):control.value)}catch{};loadLibrary().catch(e=>toast(e.message,true));});}
