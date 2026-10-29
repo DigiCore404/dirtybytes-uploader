@@ -8,3 +8,9 @@ assert.deepEqual(names(sort(listing,'size','desc',false)),['File2','File10','Fol
 assert.deepEqual(names(sort(listing,'modified','desc',false)),['Folder','File2','File10']);
 assert.deepEqual(names(sort(listing,'type','asc',false)),['File2','Folder','File10']);
 assert.equal(listing.files[0].name,'File10');console.log('Library sorting: natural names, size, dates, type, folders-first and unknown sizes passed.');
+
+assert.equal(ctx.window.LibrarySort.next('name','asc','name').direction,'desc');
+assert.equal(ctx.window.LibrarySort.next('name','desc','size').direction,'desc');
+assert.equal(ctx.window.LibrarySort.next('size','desc','name').direction,'asc');
+assert.equal(ctx.window.LibrarySort.next('size','desc','modified').direction,'desc');
+console.log('Header sort toggles and sensible initial directions passed.');

@@ -1,5 +1,10 @@
 # DirtyBytes Uploader changelog
 
+## 2.10.1 · 2026-10-29
+
+- Render Library as a table with aligned Name, Size, Date modified, Type, Category and Actions columns. Click a column heading to sort and click again to reverse; the active header shows its direction. Remove the separate Sort by and Order dropdowns.
+- Apply sorting immediately to the loaded listing without fetching folders again. Preserve saved sort preferences, the Folders first option, category overrides, context menus and upload actions. Folder sizes remain unknown rather than recursively scanning media.
+
 ## 2.10.0 · 2026-10-29
 
 - Run the shared web/CLI duplicate check before archive mounting, directory scanning, screenshots and hashing. Check both the source name and custom post title, matching name case without requiring DUPEDL. An existing duplicate stops processing; it no longer triggers an optional unpacked upload. The tracker still performs its final duplicate check.
