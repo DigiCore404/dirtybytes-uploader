@@ -1,5 +1,9 @@
 # DirtyBytes Uploader changelog
 
+## 2.10.2 · 2026-10-29
+
+- Reserve enough space for both Library action buttons so they no longer overflow the final column and create a horizontal scrollbar on otherwise wide layouts. Keep horizontal scrolling available only when the viewport is narrower than the table.
+
 ## 2.10.1 · 2026-10-29
 
 - Render Library as a table with aligned Name, Size, Date modified, Type, Category and Actions columns. Click a column heading to sort and click again to reverse; the active header shows its direction. Remove the separate Sort by and Order dropdowns.
