@@ -44,6 +44,9 @@ class DraftStore:
         from utils.publication_title import post_title
         payload=dict(post_title=post_title(data.get('post_title','')),source=str(source),release_name=source.stem if source.is_file() else source.name,category=category,
                      description=str(data.get('description') or '').strip(),images=images,metadata=metadata)
+        from utils.tracker_requests import request_id
+        selected_request=request_id(data.get('request_id',0))
+        if selected_request:payload['request_id']=selected_request
         encoded=json.dumps(payload,ensure_ascii=False);identity=str(data.get('draft_id') or uuid.uuid4().hex)
         if not re.fullmatch('[a-f0-9]{32}',identity):raise ValueError('Invalid draft ID.')
         with self.lock,self.history.connect() as db:
@@ -75,7 +78,7 @@ class DraftStore:
             with self.history.connect() as db:
                 if db.execute("SELECT 1 FROM upload_drafts WHERE state='previewing' AND deleted=0").fetchone():raise ValueError('A preview is already running. Wait for it to finish.')
             config=copy.deepcopy(uploader.load_config());payload=row['payload']
-            job=uploader.validate_job(payload['source'],payload['category'],payload['description'],payload['images'],payload['metadata'],config,prepare_files=False,post_title=payload.get('post_title',''))
+            job=uploader.validate_job(payload['source'],payload['category'],payload['description'],payload['images'],payload['metadata'],config,prepare_files=False,post_title=payload.get('post_title',''),request_id=payload.get('request_id',0))
             # Previews read media and write only to private scratch space. No site/image-host calls.
             work=self.images/identity/row['revision'];work.mkdir(parents=True,exist_ok=True)
             config.set('Paths','TMP_DIR',str(work))

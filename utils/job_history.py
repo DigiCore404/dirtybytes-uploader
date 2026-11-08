@@ -115,7 +115,7 @@ class JobHistory:
                 (identity, job.get('post_title') or job.get('release_name') or (Path(job['source']).stem if Path(job['source']).is_file() else Path(job['source']).name), job['source'], job['category'], now,
                  job.get('description', ''), json.dumps(job.get('metadata', {}), ensure_ascii=False),
                  json.dumps(job.get('images', []), ensure_ascii=False)))
-            payload={key:job[key] for key in ('source','category','description','metadata','images','post_title','release_name','source_torrent','delivery_managed') if key in job}
+            payload={key:job[key] for key in ('source','category','description','metadata','images','post_title','release_name','source_torrent','delivery_managed','request_id','request_title') if key in job}
             db.execute('UPDATE upload_jobs SET payload_json=?,retry_of=? WHERE id=?',(json.dumps(payload,ensure_ascii=False),job.get('retry_of'),identity))
             if job.get('retry_of'):
                 changed=db.execute('UPDATE upload_jobs SET retry_id=? WHERE id=? AND retry_id IS NULL',(identity,job['retry_of'])).rowcount

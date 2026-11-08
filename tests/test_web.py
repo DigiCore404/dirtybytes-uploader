@@ -18,6 +18,28 @@ import web
 
 class WebTests(unittest.TestCase):
 
+    def test_request_proxy_requires_workspace_login_and_review_keeps_selection(self):
+        from utils.tracker_requests import TrackerRequests
+        response=self.client.get(self.base+'/api/requests',timeout=10)
+        self.assertEqual(response.status_code,401)
+        self.login()
+        request={'id':17,'title':'Wanted release','filled':False,'description':'Requested format'}
+        with patch.object(TrackerRequests,'listing',return_value={'requests':[request],'total':1}),patch.object(TrackerRequests,'selected',return_value=request):
+            # The client is instantiated with current private settings, not browser-supplied credentials.
+            response=self.client.get(self.base+'/api/requests?search=wanted',timeout=10)
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertEqual(response.json()['requests'][0]['id'],17)
+            reviewed=self.post('/api/review',{'source':str(self.release),'category':3,'request_id':17})
+            self.assertEqual(reviewed.status_code,200,reviewed.text)
+            self.assertEqual(reviewed.json()['job']['request_id'],17)
+            self.assertEqual(reviewed.json()['job']['request_title'],'Wanted release')
+            saved=self.post('/api/drafts/save',{'source':str(self.release),'category':3,'request_id':17})
+            self.assertEqual(saved.status_code,200,saved.text)
+            self.assertEqual(saved.json()['payload']['request_id'],17)
+        with patch.object(TrackerRequests,'selected',side_effect=ValueError('This request has already been filled.')):
+            response=self.post('/api/review',{'source':str(self.release),'category':3,'request_id':17})
+            self.assertEqual(response.status_code,400)
+
     def test_failure_reason_phase_and_redaction_survive_retry_and_restart(self):
         from utils import upload_retry
         from utils.job_history import JobHistory

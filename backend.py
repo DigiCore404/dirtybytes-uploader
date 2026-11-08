@@ -116,6 +116,10 @@ def main():
     program_version = VERSION
 
     try:
+        if job.get('request_id'):
+            from utils.tracker_requests import TrackerRequests
+            selected=TrackerRequests(config).selected(job['request_id'])
+            print('Filling request #'+str(selected['id'])+': '+selected['title'],flush=True)
         hasher = config.get('Torrent', 'HASHER').strip()
         template_path = Path(config.get('Paths', 'TEMPLATE_PATH'))
         upload_log_path = Path(config.get('Paths', 'UPLOADLOG'))
@@ -457,6 +461,7 @@ def main():
                 dupedl_enabled,
                 metadata=release_metadata,
                 post_title=job.get('post_title',''),
+                request_id=job.get('request_id',0),
             )
             if rar_source:
                 register_unrar_mount(original_release_name, directory, upload_result,

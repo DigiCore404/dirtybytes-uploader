@@ -267,7 +267,10 @@ class Workspace:
         if path == Path(config.get('Paths', 'DATADIR')).resolve():
             raise ValueError('Choose a release subfolder, not the entire content library.')
         job = uploader.validate_job(path, data.get('category'), str(data.get('description', '')),
-                                    data.get('images', []), data.get('metadata', {}), config, source_torrent=source_torrent, prepare_files=False,post_title=data.get('post_title',''))
+                                    data.get('images', []), data.get('metadata', {}), config, source_torrent=source_torrent, prepare_files=False,post_title=data.get('post_title',''),request_id=data.get('request_id',0))
+        if job.get('request_id'):
+            from utils.tracker_requests import TrackerRequests
+            job['request_title']=TrackerRequests(config).selected(job['request_id'])['title']
         # Inspect symlink targets too: the web UI cannot upload arbitrary host paths.
         root = Path(config.get('Paths', 'DATADIR')).resolve()
         for directory, dirs, files in os.walk(path, followlinks=False):
@@ -311,6 +314,9 @@ class Workspace:
                 raise ValueError('\n'.join(errors))
             uploader.check_writable(config)
             job = draft['job']
+            if job.get('request_id'):
+                from utils.tracker_requests import TrackerRequests
+                TrackerRequests(config).selected(job['request_id'])
             content_path(job['source'], config, allow_file=True)
             if job.get('source_torrent'):
                 from utils.source_torrent import validate
@@ -411,9 +417,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == '/health':
             return self.send({'ok': True})
-        if path in ('/', '/client-controls.js', '/app.css', '/app.js', '/library-sort.js', '/library.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/updates.js', '/updates.css', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
+        if path in ('/', '/client-controls.js', '/app.css', '/app.js', '/requests.js', '/library-sort.js', '/library.js', '/logo.svg', '/logo-light.svg', '/catalogue.js', '/search-name.js', '/config-settings.js', '/updates.js', '/updates.css', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png'):
             name, mime = {'/': ('index.html', 'text/html'), '/app.css': ('app.css', 'text/css'),
                           '/app.js': ('app.js', 'text/javascript'),
+                          '/requests.js': ('requests.js', 'text/javascript'),
                           '/library.js': ('library.js', 'text/javascript'),
                           '/library-sort.js': ('library-sort.js', 'text/javascript'),
                           '/client-controls.js': ('client-controls.js', 'text/javascript'),
@@ -455,6 +462,14 @@ class Handler(BaseHTTPRequestHandler):
                 query = parse_qs(urlparse(self.path).query)
                 return self.send(workspace.imports.page(query.get('limit',[30])[0], query.get('offset',[0])[0],
                     query.get('status',[''])[0], query.get('search',[''])[0], query.get('sort',['created'])[0], query.get('direction',['desc'])[0]))
+            if path == '/api/requests':
+                from utils.tracker_requests import TrackerRequests
+                query=parse_qs(urlparse(self.path).query)
+                return self.send(TrackerRequests(uploader.load_config()).listing(query.get('search',[''])[0],query.get('category',[0])[0],query.get('offset',[0])[0],query.get('sort',['added'])[0],query.get('order',['desc'])[0]))
+            selected_request=re.fullmatch(r'/api/requests/([1-9][0-9]{0,9})',path)
+            if selected_request:
+                from utils.tracker_requests import TrackerRequests
+                return self.send(TrackerRequests(uploader.load_config()).selected(selected_request.group(1)))
             if path == '/api/state':
                 with workspace.lock:
                     state = workspace.state()
@@ -574,7 +589,7 @@ class Handler(BaseHTTPRequestHandler):
                     if source.is_file():
                         from utils.single_files import prepare
                         source = Path(prepare(str(source), config, create=False)['source'])
-                    draft = workspace.review({'source': str(source), 'category': category, 'description': data.get('description', ''), 'post_title':data.get('post_title',''), 'metadata': data.get('metadata', {}), 'images': data.get('images', [])})
+                    draft = workspace.review({'source': str(source), 'category': category, 'description': data.get('description', ''), 'post_title':data.get('post_title',''), 'request_id':data.get('request_id',0), 'metadata': data.get('metadata', {}), 'images': data.get('images', [])})
                     return self.send(workspace.upload(draft['review_id']), 202)
             if path == '/api/category-filters/test':
                 name = str(data.get('name', '')).strip()

@@ -127,7 +127,7 @@ class ImportQueue:
             raise ValueError('Choose the existing release folder or file, not the entire content library.')
         validate(Torrent.read_stream(io.BytesIO(raw)), source, allowed_root=root)
         details = {key: data.get(key, default) for key, default in
-                   [('post_title',''),('category', None), ('description', ''), ('images', []), ('metadata', {})]}
+                   [('request_id',0),('post_title',''),('category', None), ('description', ''), ('images', []), ('metadata', {})]}
         if not isinstance(details['metadata'], dict) or not isinstance(details['images'], list):
             raise ValueError('Invalid release details.')
         if len(str(details['description'])) > 30000 or len(details['images']) > 100:
@@ -157,6 +157,9 @@ class ImportQueue:
                 raise
 
     def add(self, data):
+        from utils.tracker_requests import request_id, TrackerRequests
+        selected=request_id(data.get('request_id',0))
+        if selected:TrackerRequests(uploader.load_config()).selected(selected)
         with self.lock:
             config = uploader.load_config()
             errors = uploader.check_config(config)
@@ -184,7 +187,7 @@ class ImportQueue:
             remote_path = str(PurePosixPath(remote) / relative)
             local_path = str(local.joinpath(*relative.parts))
             details = {key: data.get(key, default) for key, default in
-                       [('post_title',''),('category', None), ('description', ''), ('images', []), ('metadata', {})]}
+                       [('request_id',0),('post_title',''),('category', None), ('description', ''), ('images', []), ('metadata', {})]}
             if not isinstance(details['metadata'], dict) or not isinstance(details['images'], list):
                 raise ValueError('Invalid release details.')
             if len(str(details['description'])) > 30000 or len(details['images']) > 100:

@@ -425,6 +425,7 @@ def upload_torrent(
     allow_local_upload_fallback=None,
     metadata=None,
     post_title='',
+    request_id=0,
 ):
     """
     Uploads a torrent file to the specified site with the required details.
@@ -453,6 +454,8 @@ def upload_torrent(
     
     from utils.publication_title import post_title as validate_title
     display_title=validate_title(post_title)
+    from utils.tracker_requests import request_id as validate_request_id
+    selected_request=validate_request_id(request_id)
     # Only the HTTP upload filename supplies the site display title. Bencoded bytes are unchanged.
     upload_filename=(display_title+'.torrent') if display_title else os.path.basename(torrent_file)
     # Open the torrent file in binary mode
@@ -463,7 +466,7 @@ def upload_torrent(
         
         data = {
             'category': category_id,
-            'reqid': 0,
+            'reqid': selected_request,
             'frileech': int(f"{config.get('UploadForm', 'FREELEECH')}"),
             'anonymousUpload': int(f"{config.get('UploadForm', 'ANONYMOUS')}"),
             'nfo': nfo_content

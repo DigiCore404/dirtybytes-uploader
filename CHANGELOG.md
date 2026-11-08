@@ -1,5 +1,11 @@
 # DirtyBytes Uploader changelog
 
+## 2.11.0 · 2026-11-08
+
+- Add a searchable, paginated Requests table with category filters, sortable title/reward/votes/date columns, request details and a Fill request action.
+- Carry the selected request through upload review, saved drafts, torrent imports, CLI --request-id and retry snapshots. Send its reqid with the torrent; recheck availability before processing. The tracker enforces ownership, races, approval and reward rules. A failed or duplicate upload does not separately fill a request.
+- Use the existing configured tracker API key; no additional credentials or tracker deployment are required.
+
 ## 2.10.2 · 2026-10-29
 
 - Reserve enough space for both Library action buttons so they no longer overflow the final column and create a horizontal scrollbar on otherwise wide layouts. Keep horizontal scrolling available only when the viewport is narrower than the table.

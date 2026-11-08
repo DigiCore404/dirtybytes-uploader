@@ -110,11 +110,13 @@ def check_writable(config):
             target.unlink(missing_ok=True)
 
 
-def validate_job(source, cat, description='', images=(), metadata=None, config=None, source_torrent=None, prepare_files=True, post_title=''):
+def validate_job(source, cat, description='', images=(), metadata=None, config=None, source_torrent=None, prepare_files=True, post_title='', request_id=0):
     if metadata is not None and not isinstance(metadata, dict):
         raise ValueError('Metadata must be an object.')
     from utils.publication_title import post_title as validate_title
     post_title=validate_title(post_title)
+    from utils.tracker_requests import request_id as validate_request_id
+    request_id=validate_request_id(request_id)
     config = config or load_config()
     path = Path(source).expanduser()
     if not path.is_absolute():
@@ -156,6 +158,7 @@ def validate_job(source, cat, description='', images=(), metadata=None, config=N
     from utils.publication_title import post_title as validate_title
     job = {'post_title':validate_title(post_title),'source': str(path), 'release_name': path.stem if path.is_file() else path.name, 'category': cat, 'description': description.strip(),
            'images': urls, 'metadata': values}
+    if request_id:job['request_id']=request_id
     if source_torrent:job['source_torrent'] = str(Path(source_torrent).resolve(strict=True))
     return job
 
@@ -170,6 +173,7 @@ def review_text(job, config):
         lines += ['Existing torrent: ' + job['source_torrent'], 'Reuse only: no download or rehash. A mismatch stops the upload.']
     from utils.torrent_exclusions import patterns
     lines.append('Torrent exclusions: '+(', '.join(patterns(config)) or 'none'))
+    if job.get('request_id'):lines.append('Fill request: #'+str(job['request_id'])+' '+job.get('request_title',''))
     if job.get('post_title'):lines.append('Site post title: '+job['post_title'])
     lines += [f'{k.replace("_", " ").title()}: {v}' for k, v in job['metadata'].items()]
     lines += ['', 'Description:', job['description'] or '(Use the NFO in the folder, if present.)']
@@ -386,6 +390,7 @@ def run_backend_cli(arguments):
     parser.add_argument('-cat', '--cat', type=int)
     parser.add_argument('--title',default='',help='Site post title only; payload names stay unchanged')
     parser.add_argument('--job', help='Local JSON file containing upload details')
+    parser.add_argument('--request-id',type=int,default=0)
     parser.add_argument('--torrent', help='Reuse this original .torrent; stop on mismatch, never rehash')
     args = parser.parse_args(arguments)
     if args.torrent:args.torrent = str(Path(args.torrent).expanduser().resolve(strict=True))
@@ -415,6 +420,9 @@ def run_backend_cli(arguments):
     if args.cat is not None and args.cat not in {row['id'] for row in categories()}:
         raise ValueError('Choose a valid category.')
     from utils.publication_title import post_title
+    if getattr(args,'request_id',0):
+        from utils.tracker_requests import request_id
+        job['request_id']=request_id(args.request_id)
     job.update(source=str(source), category=args.cat,post_title=post_title(args.title or job.get('post_title','')))
     return run_job(job, config)
 
@@ -436,6 +444,7 @@ def main():
     upload.add_argument('--cat', '-cat', type=int, required=True)
     for field in ('studio', 'performers', 'genre', 'year', 'language', 'description'):
         upload.add_argument('--' + field, default='')
+    upload.add_argument('--request-id',type=int,default=0,help='Fill this open tracker request after a successful upload')
     upload.add_argument('--title',default='',help='Site post title only; original payload and hashing are unchanged')
     upload.add_argument('--image', action='append', default=[])
     upload.add_argument('--torrent', help='Reuse this original .torrent with existing local data; never rehash on mismatch')
@@ -480,7 +489,7 @@ def main():
         return 0
     job = validate_job(args.folder, args.cat, args.description, args.image,
                        dict(studio=args.studio, performers=args.performers, content_tags=args.genre,
-                            release_year=args.year, language=args.language), config, source_torrent=args.torrent, prepare_files=False,post_title=args.title)
+                            release_year=args.year, language=args.language), config, source_torrent=args.torrent, prepare_files=False,post_title=args.title,request_id=args.request_id)
     print(review_text(job, config))
     if args.dry_run:
         print('\nDry run complete. No network calls, torrent creation or upload.')

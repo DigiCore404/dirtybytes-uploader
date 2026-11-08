@@ -169,7 +169,9 @@ TorrentDownloadRetryDelay = 0
                 self.end_headers()
                 self.wfile.write(b'{"id":123,"name":"Test.Release"}' if mode != 'bad-confirmation' else b'not JSON')
             def do_GET(self):
-                if self.path.startswith('/api/v1/upload-preferences'):
+                if self.path == '/api/v1/requests/17':
+                    data = json.dumps({'request':{'id':17,'request':'Wanted release','type':25,'filled':1 if mode=='filled-request' else 0}}).encode()
+                elif self.path.startswith('/api/v1/upload-preferences'):
                     data = b'{"anonym":"no"}'
                 elif 'exact_search' in self.path:
                     data = b'not JSON' if mode == 'bad-dupe-check' else b'[{"id":123,"name":"Test.Release"}]'
@@ -231,6 +233,27 @@ TorrentDownloadRetryDelay = 0
         self.assertIn('no rehash',result.stderr)
         self.assertFalse((self.root/'watch').exists())
         self.assertFalse((self.root/'tmp').exists())
+
+    def test_selected_request_reaches_the_multipart_upload_and_retry_snapshot(self):
+        state = self.serve()
+        job = self.job(request_id=17)
+        result = uploader.run_job(job, self.config, lambda line: None)
+        self.assertEqual(result, 0)
+        self.assertEqual(state['posts'][0]['reqid'], '17')
+        from utils.job_history import JobHistory
+        history = JobHistory(self.root / 'request-history.db')
+        history.create('request-fixture',job)
+        self.assertEqual(history.get('request-fixture')['retry_payload']['request_id'],17)
+
+    def test_already_filled_request_stops_before_hashing_and_publication(self):
+        state = self.serve(mode='filled-request')
+        events = []
+        def emit(line): pass
+        emit.event = events.append
+        result = uploader.run_job(self.job(request_id=17), self.config, emit)
+        self.assertNotEqual(result, 0)
+        self.assertEqual(state['posts'], [])
+        self.assertFalse(any(e.get('stage')=='hashing' for e in events))
 
     def test_full_upload_hash_metadata_download_and_watch_folder(self):
         state = self.serve()
