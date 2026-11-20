@@ -1,6 +1,7 @@
 """Read-only ThePornDB metadata; token is sent only to the fixed API origin."""
 from utils.metadata_text import plain_description, bounded_names
 import re
+import math
 from urllib.parse import urlsplit
 import requests
 
@@ -24,6 +25,41 @@ def request(token, path, params=None):
             return response.json()['data']
     except (requests.RequestException, KeyError, TypeError) as exc:
         raise ValueError('Could not read ThePornDB metadata. Try again later.') from exc
+
+def runtime_minutes(row):
+    """TPDB duration is seconds; the tracker accepts whole minutes."""
+    explicit = row.get('runtime_minutes')
+    raw = explicit if explicit is not None else row.get('duration')
+    if raw is None or isinstance(raw, bool):
+        return ''
+    try:
+        if isinstance(raw, str) and ':' in raw and explicit is None:
+            parts = raw.strip().split(':')
+            if len(parts) not in (2, 3) or any(not p.isdigit() for p in parts):return ''
+            if any(int(p) >= 60 for p in parts[1:]):return ''
+            seconds = sum(int(p) * 60 ** i for i, p in enumerate(reversed(parts)))
+        else:
+            seconds = float(raw) * (60 if explicit is not None else 1)
+        if not math.isfinite(seconds) or not 0 < seconds <= 120000:return ''
+        return str(max(1, math.floor(seconds / 60 + 0.5)))
+    except (TypeError, ValueError, OverflowError):
+        return ''
+
+
+def performer_names(values):
+    names = []
+    seen = set()
+    for value in values if isinstance(values, list) else []:
+        if not isinstance(value, dict):continue
+        parent = value.get('parent')
+        name = parent.get('name') if isinstance(parent, dict) else None
+        if not isinstance(name, str) or not name.strip():name = value.get('name')
+        if not isinstance(name, str):continue
+        name = name.strip()
+        if name and name.casefold() not in seen:
+            names.append(name);seen.add(name.casefold())
+    return ', '.join(names)[:1000]
+
 
 def normalize(row, kind):
     def names(values):
@@ -52,7 +88,8 @@ def normalize(row, kind):
             'title': str(row.get('title') or '')[:500], 'date': date[:10],
             'description': plain_description(str(row.get('description') or '')[:30000]), 'images': images,
             'metadata': {'studio': str(site.get('name') or '')[:1000],
-                         'performers': names(row.get('performers')), 'content_tags': bounded_names(names(row.get('tags'))),
+                         'performers': performer_names(row.get('performers')), 'content_tags': bounded_names(names(row.get('tags'))),
+                         'runtime_minutes': runtime_minutes(row),
                          'release_year': date[:4] if re.match(r'^(19|20)\d\d', date) else ''}}
 
 def search(token, query, kind='scenes'):

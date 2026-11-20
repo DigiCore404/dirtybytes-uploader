@@ -351,6 +351,7 @@ def main():
         # Image upload processing
         print_section("UploadImages")
         job_event(stage='images')
+        artwork_metadata = {}
         if image_upload_enabled or screenshots_enabled:
             try:
                 if image_upload_enabled and not manual_images:
@@ -364,7 +365,14 @@ def main():
                 screenshots_dir = tmp_dir / 'screens'
                 if screenshots_enabled and screenshots_dir.exists():
                     generated_count = len(list(screenshots_dir.glob('*.jpg')))
-                    screenshot_urls = upload_images(screenshots_dir, is_screenshots=True)
+                    artwork_mode = config.get('MediaTools','CONTACT_SHEET_ARTWORK',fallback='none').strip().lower()
+                    if artwork_mode != 'none':
+                        from utils.artwork import contact_sheet_artwork
+                        uploaded_screenshots = {}
+                        screenshot_urls = upload_images(screenshots_dir, is_screenshots=True, uploaded_files=uploaded_screenshots)
+                        artwork_metadata = contact_sheet_artwork(config, uploaded_screenshots, [p.name for p in screenshots_dir.glob('*.jpg')])
+                    else:
+                        screenshot_urls = upload_images(screenshots_dir, is_screenshots=True)
                     replacements['!screenshots!'] = '\n'.join(screenshot_urls)
                     if screenshot_urls:
                         update_upload_status(name=directory_name, screenshot_url='\n'.join(screenshot_urls))
@@ -449,6 +457,7 @@ def main():
         release_metadata.update(job.get('metadata', {}))
         if manual_images:
             release_metadata['firstpic'] = manual_images[0]
+        release_metadata.update(artwork_metadata)
 
         try:
             # We pass auth_headers here instead of cookies

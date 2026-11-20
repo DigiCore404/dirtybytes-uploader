@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -11,7 +12,7 @@ from utils.logging_utils import log_to_file
 from utils import image_host
 
 
-def upload_images(directory, is_screenshots=False):
+def upload_images(directory, is_screenshots=False, *, uploaded_files=None):
     """
     Upload images from the specified directory and its subdirectories, returning formatted URLs.
 
@@ -146,4 +147,9 @@ def upload_images(directory, is_screenshots=False):
     else:
         print(f"All {len(image_files)} images uploaded.", flush=True)
 
+    if uploaded_files is not None:
+        for file in image_files:
+            formatted = results.get(file) or ''
+            match = re.search(r'\[imgw?\]([^\[\]]+)\[/imgw?\]', formatted)
+            if match:uploaded_files[file.name] = match.group(1)
     return uploaded_image_urls

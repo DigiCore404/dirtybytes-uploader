@@ -286,6 +286,24 @@ TorrentDownloadRetryDelay = 0
         self.assertEqual(torrent.source, 'DirtyBytes')
         self.assertEqual((self.release / 'payload.txt').read_text(), 'test payload ' * 1000)
 
+    def test_generated_mtn_sheet_reaches_backdrop_and_preserves_cover(self):
+        if os.name == 'nt':self.skipTest('Real MTN and mkbrr run in the Linux regression container')
+        subprocess.run(['ffmpeg','-loglevel','error','-f','lavfi','-i','testsrc2=size=640x360:rate=5:duration=24','-c:v','mpeg4',str(self.release/'video.mp4')],check=True,timeout=30)
+        state=self.serve()
+        config=uploader.load_config()
+        config.set('Settings','SCREENSHOTS','true');config.set('Settings','SCREENSHOT_CATEGORIES','25')
+        config.set('Settings','IMAGE_UPLOAD_DELAY','0')
+        config.set('MediaTools','SCREENSHOT_ENGINE','mtn');config.set('MediaTools','SCREENSHOT_SINGLES','0')
+        config.set('MediaTools','CONTACT_SHEET_ARTWORK','backdrop')
+        with self.cfg.open('w',encoding='utf-8') as stream:config.write(stream)
+        config=uploader.load_config();output=[]
+        job=uploader.validate_job(self.release,25,config=config,images=['https://example.invalid/cover.jpg'])
+        self.assertEqual(uploader.run_job(job,config,output.append),0,'\n'.join(output))
+        self.assertEqual(state['images'],1)
+        self.assertEqual(state['posts'][0]['backdrop_url'],'https://example.invalid/uploaded.jpg')
+        self.assertEqual(state['posts'][0]['firstpic'],'https://example.invalid/cover.jpg')
+        self.assertIn('https://example.invalid/uploaded.jpg',state['posts'][0]['nfo'])
+
     def test_invalid_download_is_not_published_to_watch_folder(self):
         self.serve('bad-download')
         output = []

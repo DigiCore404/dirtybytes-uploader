@@ -10,6 +10,7 @@ DEDICATED.add(('Delivery','mode'))
 DEDICATED|={('Settings',k) for k in ('image_upload','screenshots','mediainfo','dupecheck')}
 TITLES={'MediaTools':'Screenshots & thumbnail sheets','Torrent':'Torrent creation & editing','Settings':'Upload behaviour','UploadForm':'DirtyBytes publication','Paths':'Files & folders','ImageHost':'Custom image host','Network':'Network & retries','UnrarUpload':'Archive handling (UNRAR / rar2fs)','Website':'DirtyBytes site','SingleFiles':'Single-file uploads'}
 HELP={
+ 'contact_sheet_artwork':'Use the first successfully uploaded MTN contact sheet as the backdrop, cover or both. Default keeps your chosen artwork. Packs use the first available sheet. No sheet means artwork stays unchanged; a generated sheet that cannot be uploaded stops publication.',
  'exclude_patterns':'Files to omit from NEW torrents, for example *.nfo, *.txt or Sample/*.jpg (comma-separated, case-insensitive; filename patterns apply in all subfolders). Source files are never deleted. Existing-torrent reuse cannot remove files and stops without rehashing when exclusions are configured. This is separate from including NFO text in the description.',
  'check_updates':'Check for new stable releases in the web interface. Only the public uploader repository is queried; no configuration or credentials are sent.',
  'create_release_folder':'On: create a release folder beside a loose file using the selected link mode. Off: upload the original file directly, with no extra folder, link or copy. The posted title excludes its extension. Preview and dry-run never create the folder.',
@@ -56,7 +57,7 @@ HELP={
  'log':'Archive-processing log file.', 'cleanup_log':'Archive-cleanup log file.', 'cleanup_after_qbit_remove':'Allow eligible mount cleanup after removing the linked client torrent.',
  'cleanup_grace_seconds':'Wait this many seconds before eligible archive cleanup.', 'keep_failed_mounts':'Keep a failed archive mount for diagnosis.',
  'regenerate_mediainfo':'Regenerate technical information for extracted media.', 'mount_ready_timeout':'Seconds to wait for a new archive mount to become readable.'}
-LABELS={'anonymity':'Upload identity','create_release_folder':'Create a release folder for single files','uploadimgurl':'Upload API URL','authcode':'Authorization','nsfw':'Mark images as adult','screenshot_video_mode':'Videos to capture','link_mode':'Link mode for single files','mtnwidth':'Sheet width (pixels)','mtnsetting':'MTN grid & layout','mtnpostby':'Sheet footer','mtnfontfile':'MTN font','mtnbin':'MTN executable','screenshot_sheet':'Thumbnail sheet','screenshot_singles':'Separate screenshots','screenshot_limit':'Maximum screenshots per release','sourcefolder':'Source torrent folder','mkbrr_bin':'mkbrr executable','esource':'Torrent source tag','ecomment':'Torrent comment','include_nfo':'Include folder NFO'}
+LABELS={'contact_sheet_artwork':'Contact sheet as artwork','anonymity':'Upload identity','create_release_folder':'Create a release folder for single files','uploadimgurl':'Upload API URL','authcode':'Authorization','nsfw':'Mark images as adult','screenshot_video_mode':'Videos to capture','link_mode':'Link mode for single files','mtnwidth':'Sheet width (pixels)','mtnsetting':'MTN grid & layout','mtnpostby':'Sheet footer','mtnfontfile':'MTN font','mtnbin':'MTN executable','screenshot_sheet':'Thumbnail sheet','screenshot_singles':'Separate screenshots','screenshot_limit':'Maximum screenshots per release','sourcefolder':'Source torrent folder','mkbrr_bin':'mkbrr executable','esource':'Torrent source tag','ecomment':'Torrent comment','include_nfo':'Include folder NFO'}
 BOOL={'true','false'}
 RANGES={'screenshot_limit':(0,10000),'screenshot_singles':(0,12),'mtnwidth':(320,7680),'timeout':(1,600),'torrentdownloadretries':(1,100),'torrentdownloadretrydelay':(0,300),'freeleech':(0,1),'anonymous':(0,1),'ratio_target':(0,1000),'cleanup_grace_seconds':(0,86400),'mount_ready_timeout':(1,600)}
 def defaults():
@@ -78,6 +79,7 @@ def schema(config):
    fields.append({'key':key,'label':LABELS.get(key,key.replace('_',' ').capitalize()),'help':HELP.get(key,''),'type':'secret' if secret else kind,'value':'' if secret else value,'saved':bool(value) if secret else False,'locked':locked,'range':RANGES.get(key)})
   if section=='MediaTools':
    for field in fields:
+    if field['key']=='contact_sheet_artwork':field['type']='select';field['options']=[{'value':'none','label':'Keep current artwork'},{'value':'backdrop','label':'Use contact sheet as backdrop'},{'value':'cover','label':'Use contact sheet as cover'},{'value':'both','label':'Use contact sheet as cover and backdrop'}]
     if field['key']=='screenshot_video_mode':field['type']='select';field['options']=[{'value':'auto','label':'Automatic (packs: all / other: one)'},{'value':'single','label':'One video'},{'value':'all','label':'All videos (packs / site rips)'}]
   if section=='UploadForm':
    for field in fields:

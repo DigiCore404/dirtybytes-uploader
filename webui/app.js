@@ -345,7 +345,7 @@ async function pollDraftPreview(identity,request){
   if(draft.state==='previewing'){setTimeout(()=>pollDraftPreview(identity,request),1500);return;}
   $('draft-preview-status').textContent=draft.error||draft.preview.note||'Draft saved.';
   if(draft.state==='ready'){const preview=draft.preview;$('draft-preview-description').textContent=preview.description||'';$('draft-preview-mediainfo').textContent=preview.mediainfo||'MediaInfo is disabled or unavailable for this category.';if(preview.screenshot_note)$('draft-preview-status').textContent+=' '+preview.screenshot_note;
-   for(const item of preview.images||[]){const figure=element('figure'),image=element('img');image.src=item.url;image.alt=item.name;image.loading='lazy';figure.append(image,element('figcaption','field-help',item.name));$('draft-preview-images').append(figure);}}
+   for(const item of preview.images||[]){const figure=element('figure'),image=element('img');image.src=item.url;image.alt=item.name;image.loading='lazy';const roles=[];if(preview.artwork?.firstpic===item.url)roles.push('Cover');if(preview.artwork?.backdrop_url===item.url)roles.push('Backdrop');figure.append(image,element('figcaption','field-help',item.name+(roles.length?' · '+roles.join(' + '):'')));$('draft-preview-images').append(figure);}}
  }catch(error){if(request===previewPoll)$('draft-preview-status').textContent=error.message;}
 }
 $('refresh-drafts').addEventListener('click',loadDrafts);

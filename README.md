@@ -346,3 +346,11 @@ Library supports Name, Size (files), Date modified and Type, ascending/descendin
 ### Filling requests
 
 Open **Requests** to search open tracker requests, filter by category and sort the table. Choose **Fill request**, select the matching local release and check the requirements in the upload details. The review names the request explicitly. You can also enter its numeric ID or use `upload <folder> --cat <id> --request-id <request-id>` from the CLI. Drafts and retries retain the selection. The tracker handles acceptance/approval, filling and bounty payment; your own or already-filled requests cannot be filled. No request is separately marked filled after a failed or duplicate upload.
+
+### Metadata and contact-sheet artwork
+
+ThePornDB lookup fills runtime in whole minutes when its API supplies a duration. Performer names use the canonical parent name when available rather than the credited “As” alias. Review metadata before applying it; missing API data remains editable.
+
+To use an MTN contact sheet as the torrent backdrop, enable screenshots/contact sheets and choose **Settings → Screenshots & thumbnail sheets → Contact sheet as artwork → Backdrop** (`MediaTools.CONTACT_SHEET_ARTWORK = backdrop`). Cover and Both are also available; None keeps existing artwork. The local upload preview labels the selected sheet. For packs, the first successfully uploaded sheet in filename order is used. Without a generated sheet, existing artwork is kept. If sheets were generated but none uploads successfully, publication stops instead of losing the requested artwork.
+
+IAFD can block server lookups with Cloudflare. When blocked, use ThePornDB or enter metadata manually; the uploader does not bypass browser challenges.

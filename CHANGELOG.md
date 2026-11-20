@@ -1,5 +1,12 @@
 # DirtyBytes Uploader changelog
 
+## 2.12.0 · 2026-11-20
+
+- Import ThePornDB duration as whole minutes and use canonical performer names from parent profiles, with credited-name fallback and duplicate removal.
+- Add Settings → Screenshots & thumbnail sheets → Contact sheet as artwork: keep existing artwork (default), backdrop, cover or both. Uses the first successfully uploaded MTN sheet for packs; source files and the screenshot description remain unchanged. A generated sheet that cannot be uploaded stops publication when this option is selected.
+- Mark the chosen cover/backdrop in local draft previews. Web, Import and CLI share the saved option. FFmpeg-only or screenshot-disabled uploads keep the existing artwork because no MTN sheet is available.
+- IAFD currently blocks server requests with a Cloudflare challenge; this release does not bypass challenges. Use ThePornDB or enter those metadata fields manually.
+
 ## 2.11.0 · 2026-11-08
 
 - Add a searchable, paginated Requests table with category filters, sortable title/reward/votes/date columns, request details and a Fill request action.

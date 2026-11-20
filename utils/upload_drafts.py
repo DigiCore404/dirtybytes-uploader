@@ -97,6 +97,8 @@ class DraftStore:
                 image_folder=scratch/'screens';images=[]
                 for p in sorted(image_folder.glob('*.jpg')):
                     images.append({'name':p.name,'url':'/api/drafts/'+identity+'/images/'+row['revision']+'/'+p.name})
+                from utils.artwork import contact_sheet_artwork
+                artwork=contact_sheet_artwork(config, {item['name']:item['url'] for item in images}, [item['name'] for item in images])
                 reason=('No screenshots were generated. Required screenshots are disabled; check the media and screenshot settings.' if not images else '') if enabled else 'Automatic screenshots are disabled or this category is excluded in Settings.'
                 mediainfo=''
                 categories={int(x.strip()) for x in config.get('Settings','MEDIAINFO_CATEGORIES').split(',') if x.strip()}
@@ -106,7 +108,7 @@ class DraftStore:
                 replacements={'!version!':__import__('utils.app_version',fromlist=['VERSION']).VERSION,'!releasename!':job.get('post_title') or job['release_name'],'!description!':job['description'],'!nfo!':'','!imageupload!':'\n'.join('[c][img]'+str(url)+'[/img][/c]' for url in job['images']),'!screenshots!':'\n'.join('[c][img]'+p['url']+'[/img][/c]' for p in images)}
                 if config.getboolean('Settings','INCLUDE_NFO',fallback=True):process_nfo(source,replacements,scratch/'preview.log')
                 target=scratch/'description.txt';prepare_template(config.get('Paths','TEMPLATE_PATH'),target,replacements)
-                result={'job':job,'images':images,'image_folder':str(image_folder),'description':target.read_text(encoding='utf-8'),'mediainfo':mediainfo,'screenshot_note':reason,'note':'Local preview only. Nothing was published, hashed or uploaded to an image host. Screenshots are generated again when you publish.'}
+                result={'job':job,'images':images,'artwork':artwork,'image_folder':str(image_folder),'description':target.read_text(encoding='utf-8'),'mediainfo':mediainfo,'screenshot_note':reason,'note':'Local preview only. Nothing was published, hashed or uploaded to an image host. Screenshots are generated again when you publish.'}
                 with self.history.connect() as db:db.execute("UPDATE upload_drafts SET state='ready',preview=?,error=NULL WHERE id=? AND revision=? AND deleted=0",(json.dumps(result),identity,row['revision']))
             except Exception:
                 with self.history.connect() as db:db.execute("UPDATE upload_drafts SET state='error',error='Preview failed. Check the media, screenshot engine and screenshot categories. The draft is still saved; nothing was published.' WHERE id=? AND revision=? AND deleted=0",(identity,row['revision']))
